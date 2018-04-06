@@ -1,6 +1,7 @@
 import json
-import os
 import logging
+
+import os
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -28,15 +29,12 @@ def get_files_from_direc(path_to_directory):
     if os.path.isdir(path_to_directory):
         log.info("Load files from directory %s" % (path_to_directory))
         for file_or_sub_direc in os.listdir(path_to_directory):
-            file_or_sub_direc = os.path.join(path_to_directory,file_or_sub_direc)
+            file_or_sub_direc = os.path.join(path_to_directory, file_or_sub_direc)
             if os.path.isfile(file_or_sub_direc) == False:
                 files += get_files_from_direc(file_or_sub_direc)
             else:
                 files.append(file_or_sub_direc)
     else:
-        print(os.listdir(path_to_directory))
         raise Exception("%s is not a directory" % (path_to_directory))
 
     return files
-
-
