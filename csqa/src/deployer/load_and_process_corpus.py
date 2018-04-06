@@ -17,6 +17,7 @@ work_queue = None
 def create_dialogue_data_dict(files, queue):
     dialogues_dict = dict()
     for file in files:
+        log.info("Process file %s" % file)
         try:
             dialogue_in_file = load_dialogues_from_json_file(file)
         except:
@@ -28,7 +29,7 @@ def create_dialogue_data_dict(files, queue):
         queue_lock.acquire()
         queue.put(item=dialogues_dict)
         queue_lock.release()
-
+        log.info("File %s loaded" % file)
 
 def splite_list_in_chunks(input_list, num_chunks):
     return [input_list[i::num_chunks] for i in range(num_chunks)]
@@ -56,17 +57,18 @@ def main(input, num_threads):
     work_queue = queue.Queue(len(chunks_of_files))
     threads = []
 
+    log.info("Extract dialogues from files")
     for id, current_file_chunk in enumerate(chunks_of_files):
-        print(len(current_file_chunk))
         thread_name = "Thread-" + str(id)
         thread = DataLoaderThread(threadID=id, name=thread_name, files=current_file_chunk, queue=work_queue)
         thread.start()
         threads.append(thread)
 
-
     # Wait for all threads to complete
     for t in threads:
         t.join()
+
+    log.info("Dialogues extracted")
 
     # Get results from queue
     log.info("Collect results computed by threads")
