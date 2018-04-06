@@ -11,6 +11,7 @@ META_PATH = os.path.join('src', 'deployer', '__init__.py')
 INSTALL_REQUIRES = [
     'numpy==1.14.2',
     'tensorflow==1.6.0',
+    'click',
 ]
 
 ENTRY_POINTS = {
