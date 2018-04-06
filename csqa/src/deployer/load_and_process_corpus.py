@@ -1,35 +1,37 @@
 import logging
 import queue
 import threading
-from pathlib import Path
 import click
 import os
+from pathlib import Path
 from utilities.corpus_preprocessing.load_dialogues import get_files_from_direc, load_dialogues_from_json_file
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-# Globale variable needed by threads
+# Global variable needed by threads
 queue_lock = None
 work_queue = None
 
 
-def create_dialogue_data_dict(files, queue):
+def create_dialogue_data_dict(files, queue, thread_name):
     dialogues_dict = dict()
     for file in files:
-        log.info("Process file %s" % file)
+        log.debug("Process file %s" % file)
         try:
             dialogue_in_file = load_dialogues_from_json_file(file)
         except:
             log.info("Problem with file %s " % (file))
+            continue
 
         parts_of_path = Path(file).parts
         key = os.path.join(parts_of_path[-3], parts_of_path[-2], parts_of_path[-1])
         dialogues_dict[key] = dialogue_in_file
-        queue_lock.acquire()
-        queue.put(item=dialogues_dict)
-        queue_lock.release()
-        log.info("File %s loaded" % file)
+        log.debug("File %s loaded by thread %s" % (file,thread_name))
+    queue_lock.acquire()
+    queue.put(item=dialogues_dict)
+    queue_lock.release()
+
 
 def splite_list_in_chunks(input_list, num_chunks):
     return [input_list[i::num_chunks] for i in range(num_chunks)]
@@ -94,7 +96,7 @@ class DataLoaderThread(threading.Thread):
 
     def run(self):
         log.info("Starting %s" % self.name)
-        create_dialogue_data_dict(self.files, self.queue)
+        create_dialogue_data_dict(files=self.files, queue=self.queue, thread_name=self.name)
         log.info("Exiting %s" % self.name)
 
 
