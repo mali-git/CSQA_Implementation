@@ -31,7 +31,6 @@ def create_dialogue_data_dict(files, queue):
 
 
 def splite_list_in_chunks(input_list, num_chunks):
-    """Yield successive n-sized chunks from l."""
     return [input_list[i::num_chunks] for i in range(num_chunks)]
 
 
