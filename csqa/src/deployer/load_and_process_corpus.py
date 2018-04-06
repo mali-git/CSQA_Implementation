@@ -2,10 +2,8 @@ import logging
 import queue
 import threading
 from pathlib import Path
-
 import click
 import os
-
 from utilities.corpus_preprocessing.load_dialogues import get_files_from_direc, load_dialogues_from_json_file
 
 logging.basicConfig(level=logging.INFO)
@@ -30,7 +28,6 @@ def create_dialogue_data_dict(files, queue):
         queue_lock.acquire()
         queue.put(item=dialogues_dict)
         queue_lock.release()
-        return
 
 
 def splite_list_in_chunks(input_list, num_chunks):
@@ -41,7 +38,7 @@ def splite_list_in_chunks(input_list, num_chunks):
 @click.command()
 @click.option('-input', help='path to corpus directory', required=True)
 @click.option('-num_threads', help='Define number of threads for processing the data', required=True)
-def main(input,num_threads):
+def main(input, num_threads):
     input_direc = input
     num_threads = int(num_threads)
     log.info("Load files from %s" % (input_direc))
@@ -61,13 +58,12 @@ def main(input,num_threads):
     threads = []
 
     for id, current_file_chunk in enumerate(chunks_of_files):
+        print(len(current_file_chunk))
         thread_name = "Thread-" + str(id)
         thread = DataLoaderThread(threadID=id, name=thread_name, files=current_file_chunk, queue=work_queue)
         thread.start()
         threads.append(thread)
 
-        # dialogue_chunk_dict = thread_result.get()
-        # dialogues_data_dict.update(dialogue_chunk_dict)
 
     # Wait for all threads to complete
     for t in threads:
