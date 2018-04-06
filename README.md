@@ -4,8 +4,8 @@ This repository will be used to develop a dialogue systems that makes use of kno
 
 ## Repository Structure 
 
-* In './csqa' the code for training a dialogue system for the Complex Sequential Question Answering (CSQA) [1] task is contained
+* In './csqa' the code for training a dialogue system for the Complex Sequential Question Answering (CSQA) \[1\] task is contained
 
 ## References
 
-[1]: https://arxiv.org/abs/1801.10314
+\[1\]: https://arxiv.org/abs/1801.10314
