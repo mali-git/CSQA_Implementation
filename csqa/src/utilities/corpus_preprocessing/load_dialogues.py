@@ -37,7 +37,7 @@ def get_files_from_direc(path_to_directory):
             file_or_sub_direc = os.path.join(path_to_directory, file_or_sub_direc)
 
             # Ignore hidden dicetories
-            if file_or_sub_direc.startswith('.'):
+            if Path(file_or_sub_direc).name.startswith('.'):
                 continue
 
             if not os.path.isfile(file_or_sub_direc):
