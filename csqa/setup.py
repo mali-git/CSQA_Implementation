@@ -12,6 +12,7 @@ INSTALL_REQUIRES = [
     'numpy==1.14.2',
     'tensorflow==1.6.0',
     'click',
+    'gensim==3.4.0',
 ]
 
 ENTRY_POINTS = {
