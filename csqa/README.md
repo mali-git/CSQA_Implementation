@@ -21,7 +21,7 @@ Representation of an training instance: A dictionary containing following entrie
 * Answer utterance
 * Answer utterance embedded 
 
-Representation of an prediction instance: A dictionary containing following entries:
+Representation of a prediction instance: A dictionary containing following entries:
 * Instance ID
 * Dictionary [Entity ID: Entity text mention]
 * Dictionary [Predicate ID: Predicate text mention]
