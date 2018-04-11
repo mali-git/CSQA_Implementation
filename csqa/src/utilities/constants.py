@@ -21,6 +21,7 @@ CSQA_RELATIONS = 'relations'
 CSQA_TYPE_LIST = 'type_list'
 
 # Features (position features, part-of-speech features etc.) related
+WORD_VEC_DIM = 'word_vec_dim'
 POSITION_VEC_DIM = 'position_vec_dim'
 PART_OF_SPEECH_VEC_DIM = 'part_of_speech_vec_dim'
 
