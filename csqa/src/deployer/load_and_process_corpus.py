@@ -19,10 +19,13 @@ def main(input):
     dialogues_data_dict = retrieve_dialogues(input_directory=input_direc)
 
     for key, dialogue in dialogues_data_dict.items():
-        for i, turn in enumerate(dialogue[:-1]):
-            print("User: %s \n " % (dialogue[i]))
-            print("System %s" % (dialogue[i + 1]))
-            print("------------------------\n \n")
+        questions = dialogue[0::2]
+        answers = dialogue[1::2]
+        for i in range(len(questions)):
+            log.info("User: %s \n " % (questions[i]))
+            log.info("System %s" % (answers[i]))
+            log.info("------------------------\n \n")
+
 
 if __name__ == '__main__':
     main()
