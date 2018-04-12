@@ -176,6 +176,3 @@ class Utterance2TensorCreator(object):
 
         return save_start_offsets, save_end_offsets
 
-        for i, current_start in enumerate(start_offsets):
-            pass
-        return indices_of_overlapped_offsets
