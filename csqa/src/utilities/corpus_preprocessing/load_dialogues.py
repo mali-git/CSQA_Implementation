@@ -25,7 +25,7 @@ def _create_dialogue_data_dict(files):
     for file in files:
         log.debug("Process file %s" % file)
         try:
-            dialogue_in_file = load_dialogues_from_json_file(file)
+            dialogue_in_file = load_data_from_json_file(file)
         except:
             log.info("Problem with file %s " % (file))
             continue
@@ -40,13 +40,13 @@ def _create_dialogue_data_dict(files):
     return dialogues_dict
 
 
-def load_dialogues_from_json_file(input_path):
+def load_data_from_json_file(input_path):
     """
     Laod all dialogues contained in JSON file.
     :param input_path: Path to JSON file
     :return:
     """
-    log.debug("Load dialogue from %s " % (input_path))
+    log.debug("Load data from %s " % (input_path))
     with open(input_path, 'r', encoding='utf-8') as fp:
         data = json.load(fp)
     return data

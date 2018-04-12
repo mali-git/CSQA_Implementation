@@ -1,6 +1,8 @@
 
 # Instance related
 INSTANCE_ID = 'instance_id'
+QUESTION_ENTITIES = 'entities_in_question'
+ANSWER_ENTITIES = 'entities_in_answer'
 ENTITY_ID = 'entity_id'
 PREDICATE_ID = 'predicate_id'
 QUESTION_UTTERANCE = 'question_utterance'
