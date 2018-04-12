@@ -1,29 +1,38 @@
 import logging
-
+import bisect
+import numpy as np
 from gensim.models import KeyedVectors
+
+from utilities.corpus_preprocessing.load_dialogues import load_data_from_json_file
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
-from utilities.constants import WORD_VEC_DIM, CSQA_UTTERANCE
+from utilities.constants import WORD_VEC_DIM, CSQA_UTTERANCE, CSQA_ENTITIES_IN_UTTERANCE
 
 
 class Utterance2TensorCreator(object):
-    def __init__(self, max_num_utter_tokens, features_spec_dict, word_to_vec_dict=None, path_to_kb_embeddings=None):
+    def __init__(self, max_num_utter_tokens, features_spec_dict, path_to_entity_id_to_label_mapping,
+                 path_to_predicate_id_to_label_mapping, word_to_vec_dict=None, path_to_kb_embeddings=None):
         """
         :param max_num_utter_tokens: Maximum length (in tokens) of an utterance
         :param features_spec_dict: dictionary describing which features to use and their dimension
+        :param path_to_entity_id_to_label_mapping: Path to file containing the mappings of entity ids to labels
+        :param path_to_predicate_id_to_label_mapping: Path to file containing the mappings of predicate ids to labels
         :param word_to_vec_dict: Dictionary containing as keys the paths to the word2Vec models. Values indicate
-        wheter a model is in binary format or not.
+        whether a model is in binary format or not.
         :param path_to_kb_embeddings: Path to KB embeddings
         """
         if WORD_VEC_DIM in features_spec_dict:
             assert (word_to_vec_dict is not None)
 
         self.word_to_vec_models = self.load_word_2_vec_models(word_to_vec_dict=word_to_vec_dict)
+        self.entity_id_to_label_dict = self.load_entity_to_label_mapping(path_to_entity_id_to_label_mapping)
+        self.predicate_id_to_label_dict = self.load_entity_to_predicate_mapping(path_to_predicate_id_to_label_mapping)
         self.kg_embeddings_dict = self.load_kg_embeddings(path_to_kb_embeddings=path_to_kb_embeddings)
         self.max_num_utter_tokens = max_num_utter_tokens
         self.features_spec_dict = features_spec_dict
+
 
     def load_word_2_vec_models(self, word_to_vec_dict):
         """
@@ -41,6 +50,13 @@ class Utterance2TensorCreator(object):
 
     def load_kg_embeddings(self, path_to_kb_embeddings):
         pass
+
+
+    def load_entity_to_label_mapping(self, path_to_entity_id_to_label_mapping):
+        return load_data_from_json_file(path_to_entity_id_to_label_mapping)
+
+    def load_entity_to_predicate_mapping(self, path_to_predicate_id_to_label_mapping):
+        return load_data_from_json_file(path_to_predicate_id_to_label_mapping)
 
     def create_training_instances(self, dialogue, file_id):
         """
@@ -73,8 +89,6 @@ class Utterance2TensorCreator(object):
 
         return training_instance_dict
 
-
-
     def get_offsets_of_parts_in_utterance(self, utterance_dict):
         """
         Returns sorted (increasing) offsets of utterance-parts based on mentioned entities
@@ -82,8 +96,29 @@ class Utterance2TensorCreator(object):
         :rtype: dict
         """
         utterance = utterance_dict[CSQA_UTTERANCE]
+        entities_in_utterance = utterance_dict[CSQA_ENTITIES_IN_UTTERANCE]
+        start_offsets = []
+        end_offsets = []
 
-    def compute_tensor_embedding(self,utterance_dict, utterance_offsets_info_dict):
+        for entity_in_utterance in entities_in_utterance:
+            # Get offsets of entity
+            start = utterance.find(entity_in_utterance)
+
+            if start == -1:
+                # Entity not found
+                log.info("Entity %s not found in utterance %s" % (entity_in_utterance,utterance))
+                continue
+
+            end = start + len(entity_in_utterance)
+
+            # Check whether entity overlaps with other entites
+            self.find_overlapping_offsets(start_offsets,end_offsets,start,end)
+
+            # Insert offsets in sorted order
+            bisect.insort_left(start_offsets,start)
+            bisect.insort_left(end_offsets, end)
+
+    def compute_tensor_embedding(self, utterance_dict, utterance_offsets_info_dict):
         pass
 
     def create_instances_for_prediction(self):
@@ -91,3 +126,16 @@ class Utterance2TensorCreator(object):
 
     def create_instance_dict(self, is_training_instance):
         pass
+
+    def find_overlapping_offsets(self, start_offsets, end_offsets, start, end):
+        index_of_smallest = bisect.bisect(start_offsets,start)
+
+        if index_of_smallest == 0:
+            # start is not in start offsets --> All existing end offsets smaller than current end are overlapped
+            temp_np_array = np.array(end_offsets,dtype=int)
+            indices_of_overlapped_offsets = ((temp_np_array <= end) * 1).nonzero()
+            return temp_np_array[indices_of_overlapped_offsets].tolist()
+
+        for i, current_start in enumerate(start_offsets):
+            pass
+        return -1,-1
