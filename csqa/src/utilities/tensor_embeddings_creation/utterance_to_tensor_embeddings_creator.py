@@ -1,4 +1,5 @@
 import logging
+
 import bisect
 import numpy as np
 from gensim.models import KeyedVectors
@@ -33,7 +34,6 @@ class Utterance2TensorCreator(object):
         self.max_num_utter_tokens = max_num_utter_tokens
         self.features_spec_dict = features_spec_dict
 
-
     def load_word_2_vec_models(self, word_to_vec_dict):
         """
         Loads word2Vec models from disk.
@@ -50,7 +50,6 @@ class Utterance2TensorCreator(object):
 
     def load_kg_embeddings(self, path_to_kb_embeddings):
         pass
-
 
     def load_entity_to_label_mapping(self, path_to_entity_id_to_label_mapping):
         return load_data_from_json_file(path_to_entity_id_to_label_mapping)
@@ -106,17 +105,15 @@ class Utterance2TensorCreator(object):
 
             if start == -1:
                 # Entity not found
-                log.info("Entity %s not found in utterance %s" % (entity_in_utterance,utterance))
+                log.info("Entity %s not found in utterance %s" % (entity_in_utterance, utterance))
                 continue
 
             end = start + len(entity_in_utterance)
 
-            # Check whether entity overlaps with other entites
-            self.find_overlapping_offsets(start_offsets,end_offsets,start,end)
+            # Get updated list of ofsets. Function handles overlaps.
+            updated_start_offsets, updated_end_offsets = self.save_insertion_of_offsets(start_offsets, end_offsets,
+                                                                                        start, end)
 
-            # Insert offsets in sorted order
-            bisect.insort_left(start_offsets,start)
-            bisect.insort_left(end_offsets, end)
 
     def compute_tensor_embedding(self, utterance_dict, utterance_offsets_info_dict):
         pass
@@ -127,15 +124,58 @@ class Utterance2TensorCreator(object):
     def create_instance_dict(self, is_training_instance):
         pass
 
-    def find_overlapping_offsets(self, start_offsets, end_offsets, start, end):
-        index_of_smallest = bisect.bisect(start_offsets,start)
+    def save_insertion_of_offsets(self, start_offsets, end_offsets, start, end):
+        # Get the smallest value where start can be inserted in the sorted list
+        index_of_smallest = bisect.bisect(start_offsets, start)
+        indices_of_overlapped_offsets = []
+        save_start_offsets = []
+        save_end_offsets = []
 
         if index_of_smallest == 0:
+            log.info(
+                "start is not in start offsets --> All existing end offsets smaller than current end are overlapped")
             # start is not in start offsets --> All existing end offsets smaller than current end are overlapped
-            temp_np_array = np.array(end_offsets,dtype=int)
-            indices_of_overlapped_offsets = ((temp_np_array <= end) * 1).nonzero()
-            return temp_np_array[indices_of_overlapped_offsets].tolist()
+            temp_np_array = np.array(end_offsets, dtype=int)
+            current_indices_of_none_overlapped_offsets = ((temp_np_array > end) * 1).nonzero()
+            save_start_offsets = start_offsets[current_indices_of_none_overlapped_offsets]
+            save_end_offsets = end_offsets[current_indices_of_none_overlapped_offsets]
+
+
+        elif index_of_smallest == len(start_offsets):
+            # start is greater then all current values --> there are no overlapping offsets
+            save_start_offsets = start_offsets
+            save_end_offsets = end_offsets
+
+        else:
+            # start lies between smallest and biggest current start
+
+            # Step 1: Get indices of end positions which are bigger or equal to current end
+            temp_np_array = np.array(end_offsets, dtype=int)
+            current_end_offsets_indices_bigger_or_equal = ((temp_np_array >= end) * 1).nonzero()
+            non_over_lapping_offsets = np.ones(shape=len(start_offsets)).tolist()
+            insertion_allowed = False
+
+            # Step 2: Check relevant start indices
+            # relevant_start_indices = start_offsets[current_end_offsets_indices_bigger_or_equal]
+            for relevant_index in current_end_offsets_indices_bigger_or_equal:
+                current_start = start_offsets[relevant_index]
+                if current_start <= start:
+                    # Case: ['Chancellor of Germany'] Insert: 'Germany' -> Don't insert
+                    continue
+                else:
+                    # Case: ['Germany'] Insert: 'Chancellor of Germany' -> Insert
+                    non_over_lapping_offsets[relevant_index] = 0
+                    insertion_allowed = True
+
+            # Step 3: Determine safe start offsets
+            save_start_offsets = np.array(start_offsets[non_over_lapping_offsets], dtype=int).nonzero().tolist()
+            # Insert new start if possible
+            if insertion_allowed:
+                bisect.insort_left(save_start_offsets, start)
+                bisect.insort_left(save_end_offsets, end)
+
+        return save_start_offsets, save_end_offsets
 
         for i, current_start in enumerate(start_offsets):
             pass
-        return -1,-1
+        return indices_of_overlapped_offsets
