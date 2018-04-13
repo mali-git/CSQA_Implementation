@@ -43,14 +43,15 @@ def save_insertion_of_offsets(start_offsets, end_offsets, new_start, new_end):
     mask = case_one_overlappings if (len(case_one_overlappings[0]) == 1) else case_two_overlappings
 
     problematic_start, problematic_end = start_offsets[mask][0], end_offsets[mask][0]
-    valid_start, valid_end = get_offsets_of_entity_with_longer_span(new_start=new_start, new_end=new_end, existing_start=problematic_start,
+    valid_start, valid_end = get_offsets_of_entity_with_longer_span(new_start=new_start, new_end=new_end,
+                                                                    existing_start=problematic_start,
                                                                     existing_end=problematic_end)
 
     start_offsets = start_offsets.tolist()
     end_offsets = end_offsets.tolist()
     index = mask[0][0]
 
-    if valid_start==start_offsets[index] and valid_end==end_offsets[index]:
+    if valid_start == start_offsets[index] and valid_end == end_offsets[index]:
         log.info("Don't insert new entity since it is covered by exsting entity")
     else:
         log.info("Conflict due to overlapping of entities")
@@ -62,5 +63,3 @@ def save_insertion_of_offsets(start_offsets, end_offsets, new_start, new_end):
         bisect.insort_left(end_offsets, valid_end)
 
     return start_offsets, end_offsets
-
-
