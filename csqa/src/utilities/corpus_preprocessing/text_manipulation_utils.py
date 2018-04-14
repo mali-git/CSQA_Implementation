@@ -36,9 +36,15 @@ def save_insertion_of_offsets(start_offsets, end_offsets, new_start, new_end):
     indices = np.ones(shape=len(start_offsets))
 
     # Case 1: New entity is contained in existing entity. ['Chancellor of Germany'] Insert: 'Germany'
-    case_one_overlappings = (((start_offsets <= new_start) and (end_offsets >= new_start)) * 1).nonzero()
+    case_one_overlappings = (np.all([(start_offsets <= new_start), (end_offsets >= new_start)], axis=0) * 1).nonzero()
     # Case 2: New entity contains other entities. ['Germany'] Insert: 'Chancellor of Germany'
-    case_two_overlappings = (((start_offsets >= new_start) and (end_offsets <= new_end)) * 1).nonzero()
+    case_two_overlappings = (np.all([(start_offsets >= new_start), (end_offsets <= new_end)], axis=0) * 1).nonzero()
+
+    # Case: New entity overlaps with more than one entity. Consider this as an error, therefore don't consider entity.
+    # In next version deal this case.
+    # TODO: In version 0.1.2 handle this case
+    if len(case_one_overlappings[0]) != 0 and (len(case_two_overlappings[0]) != 0):
+        return start_offsets, end_offsets
 
     mask = case_one_overlappings if (len(case_one_overlappings[0]) == 1) else case_two_overlappings
 
@@ -60,7 +66,7 @@ def save_insertion_of_offsets(start_offsets, end_offsets, new_start, new_end):
     index = mask[0][0]
 
     if valid_start == start_offsets[index] and valid_end == end_offsets[index]:
-        log.info("Don't insert new entity since it is covered by exsting entity")
+        log.info("Don't insert new entity since it is covered by existing entity")
     else:
         log.info("Conflict due to overlapping of entities")
         # Remove invalid offsets and add valid ones
