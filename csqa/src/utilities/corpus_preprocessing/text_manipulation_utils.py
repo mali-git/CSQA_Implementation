@@ -2,6 +2,7 @@ import logging
 
 import bisect
 import numpy as np
+from collections import OrderedDict
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -77,3 +78,32 @@ def save_insertion_of_offsets(start_offsets, end_offsets, new_start, new_end):
         bisect.insort_left(end_offsets, valid_end)
 
     return start_offsets, end_offsets
+
+
+def mark_parts_in_text(start_offsets, end_offsets, text):
+    offsets_info_dict = OrderedDict()
+    current_pos_in_utterance = 0
+
+    for i in range(len(start_offsets)):
+        start = current_pos_in_utterance
+        end = start_offsets[i]
+        # Start of new token begins after the last character of the entity
+        current_pos_in_utterance = end_offsets[i]
+
+        # Add part info
+        if end - start <= 0:
+            # Start of current part in utterance is the beginning of an entity -> Add only entity info
+            offsets_info_dict[(start_offsets[i], end_offsets[i])] = True
+        else:
+            # Part doesn't refer to an entity
+            offsets_info_dict[(start, end)] = False
+            # Part does refer to an entity
+            offsets_info_dict[(start_offsets[i], end_offsets[i])] = True
+
+    end_of_last_entity = end_offsets[-1]
+    text_length = len(text)
+
+    if text_length - end_of_last_entity > 0:
+        offsets_info_dict[(end_of_last_entity,text_length)] = False
+
+    return offsets_info_dict
