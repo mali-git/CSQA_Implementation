@@ -80,30 +80,37 @@ def save_insertion_of_offsets(start_offsets, end_offsets, new_start, new_end):
     return start_offsets, end_offsets
 
 
-def mark_parts_in_text(start_offsets, end_offsets, text):
+def mark_parts_in_text(start_offsets_entities, end_offsets_entities, text):
+    """
+    Mark parts which refer to entity with True and non-entity parts with False
+    :param start_offsets_entities: Start positions of relevant entities in text.
+    :param end_offsets_entities: End positions of relevant entities in text.
+    :param text: Text to analyse
+    :rtype: dict
+    """
     offsets_info_dict = OrderedDict()
     current_pos_in_utterance = 0
 
-    for i in range(len(start_offsets)):
+    for i in range(len(start_offsets_entities)):
         start = current_pos_in_utterance
-        end = start_offsets[i]
+        end = start_offsets_entities[i]
         # Start of new token begins after the last character of the entity
-        current_pos_in_utterance = end_offsets[i]
+        current_pos_in_utterance = end_offsets_entities[i]
 
         # Add part info
         if end - start <= 0:
             # Start of current part in utterance is the beginning of an entity -> Add only entity info
-            offsets_info_dict[(start_offsets[i], end_offsets[i])] = True
+            offsets_info_dict[(start_offsets_entities[i], end_offsets_entities[i])] = True
         else:
             # Part doesn't refer to an entity
             offsets_info_dict[(start, end)] = False
             # Part does refer to an entity
-            offsets_info_dict[(start_offsets[i], end_offsets[i])] = True
+            offsets_info_dict[(start_offsets_entities[i], end_offsets_entities[i])] = True
 
-    end_of_last_entity = end_offsets[-1]
+    end_of_last_entity = end_offsets_entities[-1]
     text_length = len(text)
 
     if text_length - end_of_last_entity > 0:
-        offsets_info_dict[(end_of_last_entity,text_length)] = False
+        offsets_info_dict[(end_of_last_entity, text_length)] = False
 
     return offsets_info_dict

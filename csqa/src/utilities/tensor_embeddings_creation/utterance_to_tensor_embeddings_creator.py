@@ -80,12 +80,13 @@ class Utterance2TensorCreator(object):
             relevant_entity_start_offsets_in_answer, relevant_entity_end_offsets_in_answer = \
                 self.get_offsets_of_relevant_entities_in_utterance(answer)
 
-            question_offset_info_dict = mark_parts_in_text(start_offsets=relevant_entity_start_offsets_in_question,
-                                                           end_offsets=relevant_entity_end_offsets_in_question,
-                                                           text=question[CSQA_UTTERANCE])
+            question_offset_info_dict = mark_parts_in_text(
+                start_offsets_entities=relevant_entity_start_offsets_in_question,
+                end_offsets_entities=relevant_entity_end_offsets_in_question,
+                text=question[CSQA_UTTERANCE])
 
-            answer_offset_info_dict = mark_parts_in_text(start_offsets=relevant_entity_start_offsets_in_answer,
-                                                         end_offsets=relevant_entity_end_offsets_in_answer,
+            answer_offset_info_dict = mark_parts_in_text(start_offsets_entities=relevant_entity_start_offsets_in_answer,
+                                                         end_offsets_entities=relevant_entity_end_offsets_in_answer,
                                                          text=answer[CSQA_UTTERANCE])
 
             # Step 2: Compute tensor embedding for utterance
