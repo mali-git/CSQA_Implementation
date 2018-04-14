@@ -3,6 +3,7 @@ import logging
 from gensim.models import KeyedVectors
 
 from utilities.corpus_preprocessing.load_dialogues import load_data_from_json_file
+from utilities.corpus_preprocessing.text_manipulation_utils import save_insertion_of_offsets
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -109,8 +110,8 @@ class Utterance2TensorCreator(object):
             end = start + len(entity_in_utterance)
 
             # Get updated list of ofsets. Function handles overlaps.
-            updated_start_offsets, updated_end_offsets = self.save_insertion_of_offsets(start_offsets, end_offsets,
-                                                                                        start, end)
+            updated_start_offsets, updated_end_offsets = save_insertion_of_offsets(start_offsets, end_offsets,
+                                                                                   start, end)
 
     def compute_tensor_embedding(self, utterance_dict, utterance_offsets_info_dict):
         pass
