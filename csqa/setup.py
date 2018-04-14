@@ -13,6 +13,7 @@ INSTALL_REQUIRES = [
     'tensorflow==1.6.0',
     'click',
     'gensim==3.4.0',
+    'spacy==2.0.11',
 ]
 
 ENTRY_POINTS = {
