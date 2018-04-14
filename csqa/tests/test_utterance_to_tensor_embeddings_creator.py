@@ -12,7 +12,7 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         start_offsets = [10]
         end_offsets = [40]
 
-        # Case: ['Chancellor of Germany'] Insert: 'Germany' --> Don't insert
+        # Case: ['Chancellor of Germany'] Insertion Request: 'Germany' --> Refuse Request
         start_new = 30
         end_new = 40
 
@@ -23,7 +23,7 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         self.assertEqual(updated_start_offsets[0], start_offsets[0])
         self.assertEqual(updated_end_offsets[0], end_offsets[0])
 
-        # Case: ['Germany'] Insert: 'Chancellor of Germany' --> Insert
+        # Case: ['Germany'] Insertion Request: 'Chancellor of Germany' --> Accept Request and Delete 'Germany'
         start_new = 5
         end_new = 40
 

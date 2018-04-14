@@ -36,9 +36,9 @@ def save_insertion_of_offsets(start_offsets, end_offsets, new_start, new_end):
     end_offsets = np.array(end_offsets, dtype=int)
     indices = np.ones(shape=len(start_offsets))
 
-    # Case 1: New entity is contained in existing entity. ['Chancellor of Germany'] Insert: 'Germany'
+    # Case 1: New entity is contained in existing entity. ['Chancellor of Germany'] Insertion Request: 'Germany'
     case_one_overlappings = (np.all([(start_offsets <= new_start), (end_offsets >= new_start)], axis=0) * 1).nonzero()
-    # Case 2: New entity contains other entities. ['Germany'] Insert: 'Chancellor of Germany'
+    # Case 2: New entity contains other entities. ['Germany'] Insertion Request: 'Chancellor of Germany'
     case_two_overlappings = (np.all([(start_offsets >= new_start), (end_offsets <= new_end)], axis=0) * 1).nonzero()
 
     # Case: New entity overlaps with more than one entity. Consider this as an error, therefore don't consider entity.
