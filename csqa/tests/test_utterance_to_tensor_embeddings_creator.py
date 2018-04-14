@@ -72,7 +72,8 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         start_offsets = [start_entity_one, start_entity_two]
         end_offsets = [end_entity_one, end_entity_two]
 
-        offsets_info_dict = mark_parts_in_text(start_offsets_entities=start_offsets, end_offsets_entities=end_offsets, text=text)
+        offsets_info_dict = mark_parts_in_text(start_offsets_entities=start_offsets, end_offsets_entities=end_offsets,
+                                               text=text)
 
         correct_entity_info = [False, True, False, True, False]
         correct_parts = [(0, 9), (9, 15), (15, 25), (25, 46), (46, 52)]
@@ -93,7 +94,8 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         start_offsets = [start_entity]
         end_offsets = [end_entity]
 
-        offsets_info_dict = mark_parts_in_text(start_offsets_entities=start_offsets, end_offsets_entities=end_offsets, text=text)
+        offsets_info_dict = mark_parts_in_text(start_offsets_entities=start_offsets, end_offsets_entities=end_offsets,
+                                               text=text)
 
         correct_entity_info = [False, True, False]
         correct_parts = [(0, start_entity), (start_entity, end_entity), (end_entity, end_entity + 1)]
