@@ -70,7 +70,7 @@ def save_insertion_of_offsets(start_offsets, end_offsets, new_start, new_end):
     else:
         log.info("Conflict due to overlapping of entities")
         # Remove invalid offsets and add valid ones
-        log.info("Remove start offsets (start:%s,end:%s)" % (new_start, new_end))
+        log.info("Remove offsets (start:%s,end:%s)" % (new_start, new_end))
         del start_offsets[index]
         del end_offsets[index]
         bisect.insort_left(start_offsets, valid_start)
