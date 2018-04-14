@@ -18,7 +18,6 @@ class TestUtterance2TensorCreator(unittest.TestCase):
 
         updated_start_offsets, updated_end_offsets = save_insertion_of_offsets(start_offsets, end_offsets, start_new,
                                                                                end_new)
-        # print(updated_start_offsets)
 
         self.assertTrue(len(updated_start_offsets) == len(updated_end_offsets) == 1)
         self.assertEqual(updated_start_offsets[0], start_offsets[0])
@@ -61,5 +60,3 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         self.assertEqual(updated_end_offsets[0], end_offsets[0])
         self.assertEqual(updated_start_offsets[1], start_offsets[1])
         self.assertEqual(updated_end_offsets[1], end_offsets[1])
-
-
