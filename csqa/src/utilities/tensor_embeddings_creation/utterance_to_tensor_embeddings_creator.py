@@ -3,13 +3,12 @@ import logging
 import spacy
 from gensim.models import KeyedVectors
 
+from utilities.constants import WORD_VEC_DIM, CSQA_UTTERANCE, CSQA_ENTITIES_IN_UTTERANCE
 from utilities.corpus_preprocessing.load_dialogues import load_data_from_json_file
 from utilities.corpus_preprocessing.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
-
-from utilities.constants import WORD_VEC_DIM, CSQA_UTTERANCE, CSQA_ENTITIES_IN_UTTERANCE
 
 
 class Utterance2TensorCreator(object):
