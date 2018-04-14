@@ -144,6 +144,13 @@ class Utterance2TensorCreator(object):
         pass
 
     def compute_sequence_embedding(self, text, offset_tuple, is_entity):
+        """
+        Computes the embeddings for a sequence. For each part of the sequence the corresponding embedding is computed.
+        :param text: Sequence to embed
+        :param offset_tuple: Tuple containing start and position of sequence in text
+        :param is_entity: Flag indicating, whether sequence represent and entity.
+        :rtype: list
+        """
         start = offset_tuple[0]
         end = offset_tuple[1]
 
