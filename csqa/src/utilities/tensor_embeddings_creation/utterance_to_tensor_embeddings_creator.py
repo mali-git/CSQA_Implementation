@@ -3,7 +3,7 @@ import logging
 from gensim.models import KeyedVectors
 
 from utilities.corpus_preprocessing.load_dialogues import load_data_from_json_file
-from utilities.corpus_preprocessing.text_manipulation_utils import save_insertion_of_offsets
+from utilities.corpus_preprocessing.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -74,8 +74,19 @@ class Utterance2TensorCreator(object):
             answer = answers[i]
 
             # Step 1: Get offsets of utterance-parts based on mentioned entites
-            question_offsets_info_dict = self.get_offsets_of_parts_in_utterance(question)
-            answer_offsets_info_dict = self.get_offsets_of_parts_in_utterance(answer)
+            relevant_entity_start_offsets_in_question, relevant_entity_end_offsets_in_question = \
+                self.get_offsets_of_relevant_entities_in_utterance(
+                    question)
+            relevant_entity_start_offsets_in_answer, relevant_entity_end_offsets_in_answer = \
+                self.get_offsets_of_relevant_entities_in_utterance(answer)
+
+            question_offset_info_dict = mark_parts_in_text(start_offsets=relevant_entity_start_offsets_in_question,
+                                                           end_offsets=relevant_entity_end_offsets_in_question,
+                                                           text=question[CSQA_UTTERANCE])
+
+            answer_offset_info_dict = mark_parts_in_text(start_offsets=relevant_entity_start_offsets_in_answer,
+                                                         end_offsets=relevant_entity_end_offsets_in_answer,
+                                                         text=answer[CSQA_UTTERANCE])
 
             # Step 2: Compute tensor embedding for utterance
             embedded_question = self.compute_tensor_embedding(utterance_dict=question)
@@ -87,7 +98,7 @@ class Utterance2TensorCreator(object):
 
         return training_instance_dict
 
-    def get_offsets_of_parts_in_utterance(self, utterance_dict):
+    def get_offsets_of_relevant_entities_in_utterance(self, utterance_dict):
         """
         Returns sorted (increasing) offsets of utterance-parts based on mentioned entities
         :param utterance_dict: Dictionary containing all information about passed utterance
@@ -95,8 +106,7 @@ class Utterance2TensorCreator(object):
         """
         utterance = utterance_dict[CSQA_UTTERANCE]
         entities_in_utterance = utterance_dict[CSQA_ENTITIES_IN_UTTERANCE]
-        start_offsets = []
-        end_offsets = []
+        start_offsets, end_offsets = [], []
 
         for entity_in_utterance in entities_in_utterance:
             # Get offsets of entity
@@ -107,11 +117,13 @@ class Utterance2TensorCreator(object):
                 log.info("Entity %s not found in utterance %s" % (entity_in_utterance, utterance))
                 continue
 
-            end = start + len(entity_in_utterance)
+            end = start + len(entity_in_utterance) + 1
 
             # Get updated list of ofsets. Function handles overlaps.
-            updated_start_offsets, updated_end_offsets = save_insertion_of_offsets(start_offsets, end_offsets,
-                                                                                   start, end)
+            start_offsets, end_offsets = save_insertion_of_offsets(start_offsets, end_offsets,
+                                                                   start, end)
+
+        return start_offsets, end_offsets
 
     def compute_tensor_embedding(self, utterance_dict, utterance_offsets_info_dict):
         pass
