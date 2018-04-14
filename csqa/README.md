@@ -5,7 +5,8 @@ csqa is a package for training a dialogue system for the Complex Sequential Ques
 
 * In 'src/csqa/src/deployer' all deployer scripts are contained.
 * In 'src/neural_network_models' all neural networks are defined
-* In 'src/utilities' all utilities such as proeprocessing and postprocessing scripts are contained.
+* In 'src/utilities' all utilities such as preprocessing and postprocessing scripts are contained.
+* In 'src/tests' the test scripts for all modules are defined
 
 ## Utilities
 
