@@ -2,7 +2,9 @@ import logging
 
 import bisect
 import numpy as np
+
 from collections import OrderedDict
+
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
