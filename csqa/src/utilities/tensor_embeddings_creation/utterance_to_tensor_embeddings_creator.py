@@ -1,5 +1,6 @@
 import logging
 
+import spacy
 from gensim.models import KeyedVectors
 
 from utilities.corpus_preprocessing.load_dialogues import load_data_from_json_file
@@ -32,6 +33,7 @@ class Utterance2TensorCreator(object):
         self.kg_embeddings_dict = self.load_kg_embeddings(path_to_kb_embeddings=path_to_kb_embeddings)
         self.max_num_utter_tokens = max_num_utter_tokens
         self.features_spec_dict = features_spec_dict
+        self.nlp_parser = spacy.load('en')
 
     def load_word_2_vec_models(self, word_to_vec_dict):
         """
@@ -90,8 +92,10 @@ class Utterance2TensorCreator(object):
                                                          text=answer[CSQA_UTTERANCE])
 
             # Step 2: Compute tensor embedding for utterance
-            embedded_question = self.compute_tensor_embedding(utterance_dict=question)
-            embedded_answer = self.compute_tensor_embedding(utterance_dict=answer)
+            embedded_question = self.compute_tensor_embedding(utterance_dict=question,
+                                                              utterance_offsets_info_dict=question_offset_info_dict)
+            embedded_answer = self.compute_tensor_embedding(utterance_dict=answer,
+                                                            utterance_offsets_info_dict=answer_offset_info_dict)
 
             # Step 3: Create training instance
             training_instance_dict = self.create_instance_dict(is_training_instance=True)
@@ -127,10 +131,36 @@ class Utterance2TensorCreator(object):
         return start_offsets, end_offsets
 
     def compute_tensor_embedding(self, utterance_dict, utterance_offsets_info_dict):
-        pass
+        utterance = utterance_dict[CSQA_UTTERANCE]
+
+        for offset_tuple, is_entity in utterance_offsets_info_dict.items():
+            embedded_sequence = self.compute_sequence_embedding(text=utterance, offset_tuple=offset_tuple,
+                                                                is_entity=is_entity)
 
     def create_instances_for_prediction(self):
         pass
 
     def create_instance_dict(self, is_training_instance):
+        pass
+
+    def compute_sequence_embedding(self, text, offset_tuple, is_entity):
+        start = offset_tuple[0]
+        end = offset_tuple[1]
+
+        if is_entity:
+            entity = text[start:end]
+            seq_embedding = [self.get_kg_embedding(entity)]
+        else:
+            # Remove preceding and succeeding whitespaces
+            seq = text[start:end].strip()
+            # Tokenize
+            tokens = [token for token in self.nlp_parser(seq)]
+            seq_embedding = [self.get_word_embedding(token) for token in tokens]
+
+        return seq_embedding
+
+    def get_kg_embedding(self, entity):
+        pass
+
+    def get_word_embedding(self, token):
         pass
