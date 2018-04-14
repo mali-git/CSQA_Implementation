@@ -7,7 +7,7 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-class TestUtterance2TensorCreator(unittest.TestCase):
+class TestTextManipulationUtils(unittest.TestCase):
     def test_save_insertion_of_offsets(self):
         start_offsets = [10]
         end_offsets = [40]
