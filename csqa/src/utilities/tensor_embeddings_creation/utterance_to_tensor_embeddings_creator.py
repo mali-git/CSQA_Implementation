@@ -121,7 +121,7 @@ class Utterance2TensorCreator(object):
                 log.info("Entity %s not found in utterance %s" % (entity_in_utterance, utterance))
                 continue
 
-            end = start + len(entity_in_utterance) + 1
+            end = start + len(entity_in_utterance)
 
             # Get updated list of ofsets. Function handles overlaps.
             start_offsets, end_offsets = save_insertion_of_offsets(start_offsets, end_offsets,
