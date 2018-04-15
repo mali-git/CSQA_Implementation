@@ -1,9 +1,12 @@
 import logging
 
+import numpy as np
 import spacy
+from collections import OrderedDict
 from gensim.models import KeyedVectors
 
-from utilities.constants import WORD_VEC_DIM, CSQA_UTTERANCE, CSQA_ENTITIES_IN_UTTERANCE
+from utilities.constants import WORD_VEC_DIM, CSQA_UTTERANCE, CSQA_ENTITIES_IN_UTTERANCE, POSITION_VEC_DIM, \
+    PART_OF_SPEECH_VEC_DIM
 from utilities.corpus_preprocessing.load_dialogues import load_data_from_json_file
 from utilities.corpus_preprocessing.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text
 
@@ -23,10 +26,17 @@ class Utterance2TensorCreator(object):
         whether a model is in binary format or not.
         :param path_to_kb_embeddings: Path to KB embeddings
         """
-        if WORD_VEC_DIM in features_spec_dict:
-            assert (word_to_vec_dict is not None)
+
+        assert (word_to_vec_dict is not None)
+
+        if WORD_VEC_DIM not in self.features_spec_dict:
+            raise Exception("Specify 'WORD_VEC_DIM'")
+
+        if POSITION_VEC_DIM in self.features_spec_dict:
+            log.info("Position embeddings are not supported in current version, but will be available in version 0.1.2")
 
         self.word_to_vec_models = self.load_word_2_vec_models(word_to_vec_dict=word_to_vec_dict)
+        self.out_of_vocab_words_mappings = [OrderedDict() for _ in range(len(self.word_to_vec_models))]
         self.entity_id_to_label_dict = self.load_entity_to_label_mapping(path_to_entity_id_to_label_mapping)
         self.predicate_id_to_label_dict = self.load_entity_to_predicate_mapping(path_to_predicate_id_to_label_mapping)
         self.kg_embeddings_dict = self.load_kg_embeddings(path_to_kb_embeddings=path_to_kb_embeddings)
@@ -109,7 +119,8 @@ class Utterance2TensorCreator(object):
         :rtype: dict
         """
         utterance = utterance_dict[CSQA_UTTERANCE]
-        entities_in_utterance = utterance_dict[CSQA_ENTITIES_IN_UTTERANCE]
+        ids_of_entities_in_utterance = utterance_dict[CSQA_ENTITIES_IN_UTTERANCE]
+        entities_in_utterance = [self.entity_id_to_label_dict[entity_id] for entity_id in ids_of_entities_in_utterance]
         start_offsets, end_offsets = [], []
 
         for entity_in_utterance in entities_in_utterance:
@@ -152,10 +163,16 @@ class Utterance2TensorCreator(object):
         """
         start = offset_tuple[0]
         end = offset_tuple[1]
+        # Additional features
+        use_part_of_speech_embedding = False
+
+        if PART_OF_SPEECH_VEC_DIM in self.features_spec_dict:
+            use_part_of_speech_embedding = True
 
         if is_entity:
             entity = text[start:end]
-            seq_embedding = [self.get_kg_embedding(entity)]
+            seq_embedding = self.get_sequence_embedding_for_entity(entity=entity, use_part_of_speech_embedding=
+            use_part_of_speech_embedding)
         else:
             # Remove preceding and succeeding whitespaces
             seq = text[start:end].strip()
@@ -163,10 +180,51 @@ class Utterance2TensorCreator(object):
             tokens = [token for token in self.nlp_parser(seq)]
             seq_embedding = [self.get_word_embedding(token) for token in tokens]
 
+            # TODO: Merge word embeddings and part-of-speech embeddings
+            if use_part_of_speech_embedding:
+                part_of_speech_embeddings = [self.get_part_of_speech_embedding(token=token) for token in tokens]
+
+        return seq_embedding
+
+    def get_sequence_embedding_for_entity(self, entity, use_part_of_speech_embedding=False):
+        kg_entity_embedding = self.get_kg_embedding(entity=entity)
+        seq_embedding = kg_entity_embedding
+
+        if use_part_of_speech_embedding:
+            # TODO: Assign predefined POS tag for entity
+            part_of_speech_embedding = self.get_part_of_speech_embedding(token=entity, is_entity=True)
+            seq_embedding += part_of_speech_embedding
+
         return seq_embedding
 
     def get_kg_embedding(self, entity):
+        # TODO: If using severel word2Vec models, concatenate KG embedding #word2Vec models-times
         pass
 
     def get_word_embedding(self, token):
+        embeddigs_of_word = []
+
+        for i, word_to_vec_model in enumerate(self.word_to_vec_models):
+            if token in word_to_vec_model:
+                embeddigs_of_word += word_to_vec_model[token]
+            else:
+                out_of_vocab_embedding = self.get_out_of_vocab_embedding(token=token, word_to_vec_model_id=i)
+                embeddigs_of_word += out_of_vocab_embedding
+
+        return embeddigs_of_word
+
+    def get_part_of_speech_embedding(self, token, is_entity=False):
+        # TODO: If using severel word2Vec models, concatenate POS-tag embedding #word2Vec models-times
         pass
+
+    def get_out_of_vocab_embedding(self, token, word_to_vec_model_id):
+        out_of_vocab_words_mapping = self.out_of_vocab_words_mappings[word_to_vec_model_id]
+
+        if token in out_of_vocab_words_mapping:
+            return out_of_vocab_words_mapping[token]
+        else:
+            # Randomly initialize word embedding
+            out_of_vocab_embedding = np.random.uniform(low=-0.1, high=0.1,
+                                                       size=(self.features_spec_dict[WORD_VEC_DIM],)).tolist()
+            out_of_vocab_words_mapping[token] = out_of_vocab_embedding
+            return out_of_vocab_words_mapping
