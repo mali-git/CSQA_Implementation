@@ -227,4 +227,4 @@ class Utterance2TensorCreator(object):
             out_of_vocab_embedding = np.random.uniform(low=-0.1, high=0.1,
                                                        size=(self.features_spec_dict[WORD_VEC_DIM],)).tolist()
             out_of_vocab_words_mapping[token] = out_of_vocab_embedding
-            return out_of_vocab_words_mapping
+            return out_of_vocab_embedding
