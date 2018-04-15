@@ -144,6 +144,8 @@ class Utterance2TensorCreator(object):
         utterance = utterance_dict[CSQA_UTTERANCE]
 
         for offset_tuple, is_entity in utterance_offsets_info_dict.items():
+            # [  [ [token-1_model-1 embedding],...,[token-1_model-n embedding] ],...,
+            # [ [token-k_model-1 embedding],...,[token-k_model-n embedding] ]  ]
             embedded_sequence = self.compute_sequence_embedding(text=utterance, offset_tuple=offset_tuple,
                                                                 is_entity=is_entity)
 
@@ -159,7 +161,9 @@ class Utterance2TensorCreator(object):
         :param text: Sequence to embed
         :param offset_tuple: Tuple containing start and position of sequence in text
         :param is_entity: Flag indicating, whether sequence represent and entity.
-        :rtype: list
+        :rtype: list:
+        [  [ [token-1_model-1 feature embedding],...,[token-1_model-n feature embedding] ], ... ,
+        [ [token-k_model-1 feature embedding],...,[token-k_model-n feature embedding] ]  ]
         """
         start = offset_tuple[0]
         end = offset_tuple[1]
@@ -173,43 +177,76 @@ class Utterance2TensorCreator(object):
             entity = text[start:end]
             seq_embedding = self.get_sequence_embedding_for_entity(entity=entity, use_part_of_speech_embedding=
             use_part_of_speech_embedding)
+            seq_embedding = [seq_embedding]
         else:
+            part_of_speech_embeddings = []
             # Remove preceding and succeeding whitespaces
             seq = text[start:end].strip()
             # Tokenize
             tokens = [token for token in self.nlp_parser(seq)]
-            seq_embedding = [self.get_word_embedding(token) for token in tokens]
+            # [  [ [token-1 embedding],...,[token-1 embedding] ],...,[ [token-n embedding],...,[token-n embedding] ]  ]
+            token_embeddings = [self.get_embeddings_for_token(token) for token in tokens]
+            seq_embedding = token_embeddings
 
-            # TODO: Merge word embeddings and part-of-speech embeddings
             if use_part_of_speech_embedding:
-                part_of_speech_embeddings = [self.get_part_of_speech_embedding(token=token) for token in tokens]
+                for i, token in enumerate(tokens):
+                    part_of_speech_embedding = self.get_part_of_speech_embedding(token=token)
+                    # Copy POS-tag embedding if several word2Vec models should be used
+                    n_times_part_of_speech_embedding = np.repeat(a=[part_of_speech_embedding],
+                                                                 repeats=len(self.word_to_vec_models), axis=0).tolist()
+                    part_of_speech_embeddings.append(n_times_part_of_speech_embedding)
+
+            # TODO: Merge feature embeddings
+            self.merge_feature_embeddings()
 
         return seq_embedding
 
     def get_sequence_embedding_for_entity(self, entity, use_part_of_speech_embedding=False):
+        """
+        Compute the embedding of an entity (single token or several tokens)
+        :param entity: Entity for which embedding should be computed
+        :param use_part_of_speech_embedding: Flag indicating whether POS-tag embedding should be computed
+        :rtype: list
+        """
         kg_entity_embedding = self.get_kg_embedding(entity=entity)
-        seq_embedding = kg_entity_embedding
+        seq_embedding = []
+        # Copy entity embedding if several word2Vec models should be used
+        for i in range(len(self.word_to_vec_models)):
+            seq_embedding.append(kg_entity_embedding)
 
         if use_part_of_speech_embedding:
             # TODO: Assign predefined POS tag for entity
             part_of_speech_embedding = self.get_part_of_speech_embedding(token=entity, is_entity=True)
-            seq_embedding += part_of_speech_embedding
+            part_of_speech_embeddings = []
+
+            # Copy POS-tag embedding if several word2Vec models should be used
+            for i in range(len(self.word_to_vec_models)):
+                part_of_speech_embeddings.append(part_of_speech_embedding)
+
+            # Concatenate entity embeddings with POS-Tag embeddings:
+            # [[entity_embedding-POS embedding], [entity_embedding-POS embedding],....,[entity_embedding-POS embedding]]
+            seq_embedding = np.concatenate([seq_embedding, part_of_speech_embeddings], axis=0)
 
         return seq_embedding
 
     def get_kg_embedding(self, entity):
-        # TODO: If using severel word2Vec models, concatenate KG embedding #word2Vec models-times
         pass
 
-    def get_word_embedding(self, token):
+    def get_embeddings_for_token(self, token):
+        """
+        Extract from each word2Vec model the embedding for the 'token'.
+        :param token: The token for wich the word embeddings should be extraced
+        :rtype: list: A list of lists. Each list contains the token embedding for a specific word2Vec model:
+        [[token embedding based on model-1], ..., [token embedding based on model-n]]
+        """
         embeddigs_of_word = []
 
         for i, word_to_vec_model in enumerate(self.word_to_vec_models):
             if token in word_to_vec_model:
-                embeddigs_of_word += word_to_vec_model[token]
+                embeddigs_of_word.append(word_to_vec_model[token])
             else:
                 out_of_vocab_embedding = self.get_out_of_vocab_embedding(token=token, word_to_vec_model_id=i)
-                embeddigs_of_word += out_of_vocab_embedding
+                embeddigs_of_word.append(out_of_vocab_embedding)
 
         return embeddigs_of_word
 
@@ -228,3 +265,6 @@ class Utterance2TensorCreator(object):
                                                        size=(self.features_spec_dict[WORD_VEC_DIM],)).tolist()
             out_of_vocab_words_mapping[token] = out_of_vocab_embedding
             return out_of_vocab_embedding
+
+    def merge_feature_embeddings(self):
+        pass
