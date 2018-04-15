@@ -184,7 +184,8 @@ class Utterance2TensorCreator(object):
             seq = text[start:end].strip()
             # Tokenize
             tokens = [token for token in self.nlp_parser(seq)]
-            # [  [ [token-1 embedding],...,[token-1 embedding] ],...,[ [token-n embedding],...,[token-n embedding] ]  ]
+            # [  [ [token-1_model-1 embedding],...,[token-1_model-n embedding] ],...,[ [token-k_model-1 embedding],...,
+            # [token-k_model-n embedding] ]  ]
             token_embeddings = [self.get_embeddings_for_token(token) for token in tokens]
             seq_embedding = token_embeddings
 
