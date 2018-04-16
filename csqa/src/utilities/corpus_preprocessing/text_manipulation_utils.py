@@ -134,9 +134,9 @@ def compute_nlp_features(txt, offsets_info_dict):
         end = offset_tuple[1]
 
         if not is_entity:
-            # Parts not correpsponding to an entiy also include spaces before the first token and after the last
+            # Parts not corresponding to an entiy also include spaces before the first token and after the last
             # token, except at the beginning and the end of the sentence
-            if start != 0:
+            if start != 0 and end != len(txt):
                 start += 1
             if end != len(txt):
                 end -= 1

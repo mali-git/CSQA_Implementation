@@ -1,7 +1,8 @@
 import logging
 import unittest
-
-from utilities.corpus_preprocessing.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text
+from collections import OrderedDict
+from utilities.corpus_preprocessing.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text, \
+    compute_nlp_features
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -108,3 +109,74 @@ class TestTextManipulationUtils(unittest.TestCase):
             self.assertEqual(value, correct_entity_info[counter])
             self.assertEqual(key, correct_parts[counter])
             counter += 1
+
+    def test_compute_nlp_features(self):
+        txt = 'The chancellor of Germany visited Paris'
+        offsets_info_dict = OrderedDict()
+        offsets_info_dict[(0,4)] = False
+        offsets_info_dict[(4,25)] = True
+        offsets_info_dict[(25,34)] = False
+        offsets_info_dict[(34,39)] = True
+
+        spans = compute_nlp_features(txt=txt, offsets_info_dict=offsets_info_dict)
+        span_one = spans[0]
+        span_two = spans[1]
+        span_three = spans[2]
+        span_four = spans[3]
+
+        self.assertEqual(len(spans),4)
+
+        # Check for correct offset assignments
+        self.assertEqual(span_one.start_char,0)
+        self.assertEqual(span_one.end_char, 3)
+
+        self.assertEqual(span_two.start_char, 4)
+        self.assertEqual(span_two.end_char, 25)
+
+        self.assertEqual(span_three.start_char, 26)
+        self.assertEqual(span_three.end_char, 33)
+
+        self.assertEqual(span_four.start_char, 34)
+        self.assertEqual(span_four.end_char, 39)
+
+        # Check for correct labeling
+        self.assertEqual(span_one.label,0)
+        self.assertEqual(span_two.label,1)
+        self.assertEqual(span_three.label,0)
+        self.assertEqual(span_four.label,1)
+
+        # Case: Last token is not an entity
+        offsets_info_dict[(34, 39)] = False
+        print(offsets_info_dict)
+        spans = compute_nlp_features(txt=txt, offsets_info_dict=offsets_info_dict)
+
+        span_four = spans[3]
+        self.assertEqual(span_four.start_char, 34)
+        self.assertEqual(span_four.end_char, 39)
+
+        # Case: Text contains punctuations
+        txt = 'The; chancellor-of-Germany visited Paris!'
+        offsets_info_dict = OrderedDict()
+        offsets_info_dict[(0, 5)] = False
+        offsets_info_dict[(5, 26)] = True
+        offsets_info_dict[(26, 35)] = False
+        offsets_info_dict[(35, 40)] = True
+        offsets_info_dict[(40, 41)] = False
+
+        spans = compute_nlp_features(txt=txt, offsets_info_dict=offsets_info_dict)
+
+        self.assertEqual(len(spans), 5)
+        print(spans)
+        # Check for correct offset assignments
+        for span in spans:
+            if span.label == 1:
+                # Is entity
+                start = span.start_char
+                end = span.end_char
+                self.assertTrue((start==5 and end==26) or (start==35 and end==40))
+
+
+
+
+
+
