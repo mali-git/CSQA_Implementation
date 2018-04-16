@@ -48,14 +48,21 @@ class Utterance2TensorCreator(object):
     def load_word_2_vec_models(self, word_to_vec_dict):
         """
         Loads word2Vec models from disk.
-        :param word_to_vec_dict: Dictionary containing as keys the paths to the word2Vec models. Values indicate
-        wheter a model is in binary format or not.
+        :param word_to_vec_dict: Dictionary containing as keys the paths to the word2Vec models. Each value in dict
+        is a list where list[0] indicates whether model is in c format and list[1] indicates whether model is saved
+        as binary or not
         :rtype: list
         """
         word_to_vec_models = []
 
-        for current_path, format in word_to_vec_dict.items():
-            word_to_vec_models.append(KeyedVectors.load_word2vec_format(current_path, binary=format))
+        for current_path, format_info in word_to_vec_dict.items():
+            is_c_format = format_info[0]
+            is_binary = format_info[1]
+
+            if is_c_format:
+                word_to_vec_models.append(KeyedVectors.load_word2vec_format(current_path, binary=is_binary))
+            else:
+                word_to_vec_models.append(KeyedVectors.load(fname_or_handle=current_path))
 
         return word_to_vec_models
 
@@ -331,3 +338,4 @@ class Utterance2TensorCreator(object):
                     # Copy POS-tag embedding if several word2Vec models should be used
                     n_times_part_of_speech_embedding = np.repeat(a=[part_of_speech_embedding],
                                                                  repeats=len(self.word_to_vec_models), axis=0).tolist()
+            # TODO: Merge features
