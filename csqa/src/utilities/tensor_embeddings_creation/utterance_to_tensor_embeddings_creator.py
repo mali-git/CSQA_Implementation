@@ -17,12 +17,11 @@ log = logging.getLogger(__name__)
 
 class Utterance2TensorCreator(object):
     def __init__(self, max_num_utter_tokens, features_spec_dict, path_to_entity_id_to_label_mapping,
-                 path_to_predicate_id_to_label_mapping, word_to_vec_dict=None, path_to_kb_embeddings=None):
+                 word_to_vec_dict=None, path_to_kb_embeddings=None):
         """
         :param max_num_utter_tokens: Maximum length (in tokens) of an utterance
         :param features_spec_dict: dictionary describing which features to use and their dimension
         :param path_to_entity_id_to_label_mapping: Path to file containing the mappings of entity ids to labels
-        :param path_to_predicate_id_to_label_mapping: Path to file containing the mappings of predicate ids to labels
         :param word_to_vec_dict: Dictionary containing as keys the paths to the word2Vec models. Values indicate
         whether a model is in binary format or not.
         :param path_to_kb_embeddings: Path to KB embeddings
@@ -39,11 +38,13 @@ class Utterance2TensorCreator(object):
         self.word_to_vec_models = self.load_word_2_vec_models(word_to_vec_dict=word_to_vec_dict)
         self.out_of_vocab_words_mappings = [OrderedDict() for _ in range(len(self.word_to_vec_models))]
         self.entity_id_to_label_dict = self.load_entity_to_label_mapping(path_to_entity_id_to_label_mapping)
-        self.predicate_id_to_label_dict = self.load_entity_to_predicate_mapping(path_to_predicate_id_to_label_mapping)
         self.kg_embeddings_dict = self.load_kg_embeddings(path_to_kb_embeddings=path_to_kb_embeddings)
         self.max_num_utter_tokens = max_num_utter_tokens
         self.features_spec_dict = features_spec_dict
         self.nlp_parser = spacy.load('en')
+        self.part_of_speech_embedding_dict = dict()
+        self.dummy_entity_embedding = np.random.uniform(low=-0.1, high=0.1,
+                                                        size=(self.features_spec_dict[WORD_VEC_DIM],)).tolist()
 
     def load_word_2_vec_models(self, word_to_vec_dict):
         """
@@ -112,9 +113,9 @@ class Utterance2TensorCreator(object):
 
             # Step 2: Compute NLP features
             question_nlp_spans = compute_nlp_features(txt=question_txt,
-                                                           offsets_info_dict=question_offset_info_dict)
+                                                      offsets_info_dict=question_offset_info_dict)
             answer_nlp_spans = compute_nlp_features(txt=answer_txt,
-                                                         offsets_info_dict=answer_offset_info_dict)
+                                                    offsets_info_dict=answer_offset_info_dict)
 
             # Step 3: Compute tensor embedding for utterance
             embedded_question = self.compute_tensor_embedding(utterance_dict=question,
@@ -233,6 +234,7 @@ class Utterance2TensorCreator(object):
         """
         Compute the embedding of an entity (single token or several tokens)
         :param entity: Entity for which embedding should be computed
+        :param nlp_span: Container containing all NLP features (tokens,POS-tag,dependency parsing etc.) for entity
         :param use_part_of_speech_embedding: Flag indicating whether POS-tag embedding should be computed
         :rtype: list
         """
@@ -261,7 +263,9 @@ class Utterance2TensorCreator(object):
         return seq_embedding
 
     def get_kg_embedding(self, entity):
-        pass
+        # Dummy representation until KG embeddings are available
+        #  TODO: Replace implementation
+        return self.dummy_entity_embedding
 
     def get_embeddings_for_token(self, token):
         """
@@ -300,8 +304,6 @@ class Utterance2TensorCreator(object):
     def merge_feature_embeddings(self):
         pass
 
-
-
     def beta_compute_sequence_embedding(self, txt, offset_tuple,
                                         is_entity, nlp_span):
         """
@@ -338,4 +340,4 @@ class Utterance2TensorCreator(object):
                     # Copy POS-tag embedding if several word2Vec models should be used
                     n_times_part_of_speech_embedding = np.repeat(a=[part_of_speech_embedding],
                                                                  repeats=len(self.word_to_vec_models), axis=0).tolist()
-            # TODO: Merge features
+                    # TODO: Merge features
