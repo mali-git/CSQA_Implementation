@@ -8,7 +8,8 @@ from gensim.models import KeyedVectors
 from utilities.constants import WORD_VEC_DIM, CSQA_UTTERANCE, CSQA_ENTITIES_IN_UTTERANCE, POSITION_VEC_DIM, \
     PART_OF_SPEECH_VEC_DIM
 from utilities.corpus_preprocessing.load_dialogues import load_data_from_json_file
-from utilities.corpus_preprocessing.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text
+from utilities.corpus_preprocessing.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text, \
+    compute_nlp_features
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -103,9 +104,9 @@ class Utterance2TensorCreator(object):
                                                          text=answer_txt)
 
             # Step 2: Compute NLP features
-            question_nlp_spans = self.compute_nlp_features(txt=question_txt,
+            question_nlp_spans = compute_nlp_features(txt=question_txt,
                                                            offsets_info_dict=question_offset_info_dict)
-            answer_nlp_spans = self.compute_nlp_features(txt=answer_txt,
+            answer_nlp_spans = compute_nlp_features(txt=answer_txt,
                                                          offsets_info_dict=answer_offset_info_dict)
 
             # Step 3: Compute tensor embedding for utterance
@@ -292,31 +293,7 @@ class Utterance2TensorCreator(object):
     def merge_feature_embeddings(self):
         pass
 
-    def compute_nlp_features(self, txt, offsets_info_dict):
-        """
-        Computes all different NLP features (tokens,part-of-speech tags, dependency parsing features)
-        :param txt: Text for which NLP features should be computed
-        :param offsets_info_dict: Dictionary with marked parts of txt. Indicates whether part contains relevant entity
-        or not
-        :rtype: list
-        """
-        doc = self.nlp_parser(u'%s' % (txt))
-        spans = []
 
-        for offset_tuple, is_entity in offsets_info_dict.items():
-            start = offset_tuple[0]
-            end = offset_tuple[1]
-
-            if not is_entity:
-                # Parts not correpsponding to an entiy also include spaces before the first token and after the last
-                # token, except at the beginning and the end of the sentence
-                if start != 0:
-                    start += 1
-                if end != len(txt):
-                    end -= 1
-            span = doc.char_span(start, end, label=int(is_entity))
-            spans.append(span)
-        return spans
 
     def beta_compute_sequence_embedding(self, txt, offset_tuple,
                                         is_entity, nlp_span):

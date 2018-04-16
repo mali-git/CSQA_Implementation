@@ -2,12 +2,12 @@ import logging
 
 import bisect
 import numpy as np
-
+import spacy
 from collections import OrderedDict
-
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
+nlp_parser = spacy.load('en')
 
 
 def get_offsets_of_entity_with_longer_span(new_start, new_end, existing_start, existing_end):
@@ -116,3 +116,30 @@ def mark_parts_in_text(start_offsets_entities, end_offsets_entities, text):
         offsets_info_dict[(end_of_last_entity, text_length)] = False
 
     return offsets_info_dict
+
+
+def compute_nlp_features(txt, offsets_info_dict):
+    """
+    Computes all different NLP features (tokens,part-of-speech tags, dependency parsing features)
+    :param txt: Text for which NLP features should be computed
+    :param offsets_info_dict: Dictionary with marked parts of txt. Indicates whether part contains relevant entity
+    or not
+    :rtype: list
+    """
+    doc = nlp_parser(u'%s' % (txt))
+    spans = []
+
+    for offset_tuple, is_entity in offsets_info_dict.items():
+        start = offset_tuple[0]
+        end = offset_tuple[1]
+
+        if not is_entity:
+            # Parts not correpsponding to an entiy also include spaces before the first token and after the last
+            # token, except at the beginning and the end of the sentence
+            if start != 0:
+                start += 1
+            if end != len(txt):
+                end -= 1
+        span = doc.char_span(start, end, label=int(is_entity))
+        spans.append(span)
+    return spans
