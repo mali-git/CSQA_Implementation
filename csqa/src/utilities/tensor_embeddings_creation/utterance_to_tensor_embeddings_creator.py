@@ -83,6 +83,8 @@ class Utterance2TensorCreator(object):
         for i in range(len(questions)):
             question = questions[i]
             answer = answers[i]
+            question_txt = question[CSQA_UTTERANCE]
+            answer_txt = answer[CSQA_UTTERANCE]
 
             # Step 1: Get offsets of utterance-parts based on mentioned entites
             relevant_entity_start_offsets_in_question, relevant_entity_end_offsets_in_question = \
@@ -94,17 +96,25 @@ class Utterance2TensorCreator(object):
             question_offset_info_dict = mark_parts_in_text(
                 start_offsets_entities=relevant_entity_start_offsets_in_question,
                 end_offsets_entities=relevant_entity_end_offsets_in_question,
-                text=question[CSQA_UTTERANCE])
+                text=question_txt)
 
             answer_offset_info_dict = mark_parts_in_text(start_offsets_entities=relevant_entity_start_offsets_in_answer,
                                                          end_offsets_entities=relevant_entity_end_offsets_in_answer,
-                                                         text=answer[CSQA_UTTERANCE])
+                                                         text=answer_txt)
 
-            # Step 2: Compute tensor embedding for utterance
+            # Step 2: Compute NLP features
+            question_nlp_spans = self.compute_nlp_features(txt=question_txt,
+                                                           offsets_info_dict=question_offset_info_dict)
+            answer_nlp_spans = self.compute_nlp_features(txt=answer_txt,
+                                                         offsets_info_dict=answer_offset_info_dict)
+
+            # Step 3: Compute tensor embedding for utterance
             embedded_question = self.compute_tensor_embedding(utterance_dict=question,
-                                                              utterance_offsets_info_dict=question_offset_info_dict)
+                                                              utterance_offsets_info_dict=question_offset_info_dict,
+                                                              nlp_spans=question_nlp_spans)
             embedded_answer = self.compute_tensor_embedding(utterance_dict=answer,
-                                                            utterance_offsets_info_dict=answer_offset_info_dict)
+                                                            utterance_offsets_info_dict=answer_offset_info_dict,
+                                                            nlp_spans=answer_nlp_spans)
 
             # Step 3: Create training instance
             training_instance_dict = self.create_instance_dict(is_training_instance=True)
@@ -140,14 +150,22 @@ class Utterance2TensorCreator(object):
 
         return start_offsets, end_offsets
 
-    def compute_tensor_embedding(self, utterance_dict, utterance_offsets_info_dict):
+    def compute_tensor_embedding(self, utterance_dict, utterance_offsets_info_dict, nlp_spans):
         utterance = utterance_dict[CSQA_UTTERANCE]
+        counter = 0
 
         for offset_tuple, is_entity in utterance_offsets_info_dict.items():
             # [  [ [token-1_model-1 embedding],...,[token-1_model-n embedding] ],...,
             # [ [token-k_model-1 embedding],...,[token-k_model-n embedding] ]  ]
-            embedded_sequence = self.compute_sequence_embedding(text=utterance, offset_tuple=offset_tuple,
-                                                                is_entity=is_entity)
+            # embedded_sequence = self.compute_sequence_embedding(text=utterance, offset_tuple=offset_tuple,
+            #                                                     is_entity=is_entity)
+
+            nlp_span = nlp_spans[counter]
+            embedded_sequence = self.beta_compute_sequence_embedding(txt=utterance, offset_tuple=offset_tuple,
+                                                                     is_entity=is_entity, nlp_span=nlp_span)
+            counter += 1
+
+            ##############
 
     def create_instances_for_prediction(self):
         pass
@@ -189,20 +207,21 @@ class Utterance2TensorCreator(object):
             token_embeddings = [self.get_embeddings_for_token(token) for token in tokens]
             seq_embedding = token_embeddings
 
+            # FIXME: POS-Tagging should be applied on whole sentence since result can change.
             if use_part_of_speech_embedding:
+                log.info("POS-tagging in current version can cause problems")
                 for i, token in enumerate(tokens):
-                    part_of_speech_embedding = self.get_part_of_speech_embedding(token=token)
+                    part_of_speech_embedding = self.get_part_of_speech_embedding(pos_tag=token)
                     # Copy POS-tag embedding if several word2Vec models should be used
                     n_times_part_of_speech_embedding = np.repeat(a=[part_of_speech_embedding],
                                                                  repeats=len(self.word_to_vec_models), axis=0).tolist()
                     part_of_speech_embeddings.append(n_times_part_of_speech_embedding)
 
-            # TODO: Merge feature embeddings
-            self.merge_feature_embeddings()
+                    # TODO: Merge feature embeddings: self.merge_feature_embeddings()
 
         return seq_embedding
 
-    def get_sequence_embedding_for_entity(self, entity, use_part_of_speech_embedding=False):
+    def get_sequence_embedding_for_entity(self, entity, nlp_span, use_part_of_speech_embedding=False):
         """
         Compute the embedding of an entity (single token or several tokens)
         :param entity: Entity for which embedding should be computed
@@ -210,22 +229,25 @@ class Utterance2TensorCreator(object):
         :rtype: list
         """
         kg_entity_embedding = self.get_kg_embedding(entity=entity)
-        seq_embedding = []
         # Copy entity embedding if several word2Vec models should be used
-        for i in range(len(self.word_to_vec_models)):
-            seq_embedding.append(kg_entity_embedding)
+        seq_embedding = np.repeat(a=[kg_entity_embedding], repeats=len(self.word_to_vec_models), axis=0)
 
         if use_part_of_speech_embedding:
-            # TODO: Assign predefined POS tag for entity
-            part_of_speech_embedding = self.get_part_of_speech_embedding(token=entity, is_entity=True)
-            part_of_speech_embeddings = []
+            # Current strategy for POS-tags of entities: If entity consists of mutilple tokens such as
+            # Chancellor of Germany, combine POS-tags for each token --> tag_1-tag_2-_tag-3
+            pos_tags = [token.pos_ for token in nlp_span]
+            if len(pos_tags) >= 1:
+                pos_tag = "-".join(pos_tags)
+            else:
+                pos_tag = pos_tags[0]
 
             # Copy POS-tag embedding if several word2Vec models should be used
-            for i in range(len(self.word_to_vec_models)):
-                part_of_speech_embeddings.append(part_of_speech_embedding)
+            part_of_speech_embedding = self.get_part_of_speech_embedding(pos_tag=pos_tag)
+            part_of_speech_embeddings = np.repeat(a=[part_of_speech_embedding], repeats=len(self.word_to_vec_models),
+                                                  axis=0)
 
             # Concatenate entity embeddings with POS-Tag embeddings:
-            # [[entity_embedding-POS embedding], [entity_embedding-POS embedding],....,[entity_embedding-POS embedding]]
+            # [ [kg_embedding feature embedding],...,[kg_embedding  feature embedding] ]
             seq_embedding = np.concatenate([seq_embedding, part_of_speech_embeddings], axis=0)
 
         return seq_embedding
@@ -251,7 +273,7 @@ class Utterance2TensorCreator(object):
 
         return embeddigs_of_word
 
-    def get_part_of_speech_embedding(self, token, is_entity=False):
+    def get_part_of_speech_embedding(self, pos_tag):
         # TODO: If using severel word2Vec models, concatenate POS-tag embedding #word2Vec models-times
         pass
 
@@ -269,3 +291,66 @@ class Utterance2TensorCreator(object):
 
     def merge_feature_embeddings(self):
         pass
+
+    def compute_nlp_features(self, txt, offsets_info_dict):
+        """
+        Computes all different NLP features (tokens,part-of-speech tags, dependency parsing features)
+        :param txt: Text for which NLP features should be computed
+        :param offsets_info_dict: Dictionary with marked parts of txt. Indicates whether part contains relevant entity
+        or not
+        :rtype: list
+        """
+        doc = self.nlp_parser(u'%s' % (txt))
+        spans = []
+
+        for offset_tuple, is_entity in offsets_info_dict.items():
+            start = offset_tuple[0]
+            end = offset_tuple[1]
+
+            if not is_entity:
+                # Parts not correpsponding to an entiy also include spaces before the first token and after the last
+                # token, except at the beginning and the end of the sentence
+                if start != 0:
+                    start += 1
+                if end != len(txt):
+                    end -= 1
+            span = doc.char_span(start, end, label=int(is_entity))
+            spans.append(span)
+        return spans
+
+    def beta_compute_sequence_embedding(self, txt, offset_tuple,
+                                        is_entity, nlp_span):
+        """
+
+        :param txt: Text from which substrings are extracted.
+        :param offset_tuple: Dict containing information abour all relevant substring.
+        :param is_entity:
+        :param nlp_span:
+        :rtype: list
+        [  [ [token-1_model-1 feature embedding],...,[token-1_model-n feature embedding] ], ... ,
+        [ [token-k_model-1 feature embedding],...,[token-k_model-n feature embedding] ]  ]
+        """
+
+        use_part_of_speech_embedding = False
+
+        if PART_OF_SPEECH_VEC_DIM in self.features_spec_dict:
+            use_part_of_speech_embedding = True
+
+        if is_entity:
+            start = offset_tuple[0]
+            end = offset_tuple[1]
+            entity = txt[start:end]
+            seq_embedding = self.get_sequence_embedding_for_entity(entity=entity, nlp_span=nlp_span,
+                                                                   use_part_of_speech_embedding=
+                                                                   use_part_of_speech_embedding)
+            seq_embedding = [seq_embedding]
+        else:
+            tokens = [token.text for token in nlp_span]
+            token_embeddings = [self.get_embeddings_for_token(token) for token in tokens]
+
+            if use_part_of_speech_embedding:
+                for token in tokens:
+                    part_of_speech_embedding = self.get_part_of_speech_embedding(pos_tag=token)
+                    # Copy POS-tag embedding if several word2Vec models should be used
+                    n_times_part_of_speech_embedding = np.repeat(a=[part_of_speech_embedding],
+                                                                 repeats=len(self.word_to_vec_models), axis=0).tolist()
