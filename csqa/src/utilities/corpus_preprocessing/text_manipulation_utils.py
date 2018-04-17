@@ -134,12 +134,13 @@ def compute_nlp_features(txt, offsets_info_dict):
         end = offset_tuple[1]
 
         if not is_entity:
-            # Parts not corresponding to an entiy also include spaces before the first token and after the last
-            # token, except at the beginning and the end of the sentence
-            if start != 0 and end != len(txt):
+            # Parts not corresponding to an entity can include spaces before the first token and after the last token.
+            # Remove space, so that valid spacy span can be created
+            if txt[start:start+1].isspace():
                 start += 1
             if end != len(txt):
                 end -= 1
+
         span = doc.char_span(start, end, label=int(is_entity))
         spans.append(span)
     return spans
