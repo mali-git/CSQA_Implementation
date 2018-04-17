@@ -45,6 +45,7 @@ class Utterance2TensorCreator(object):
         self.part_of_speech_embedding_dict = dict()
         self.dummy_entity_embedding = np.random.uniform(low=-0.1, high=0.1,
                                                         size=(self.features_spec_dict[WORD_VEC_DIM],)).tolist()
+        self.padding_embedding = np.zeros(shape=(self.features_spec_dict[WORD_VEC_DIM]))
 
     def load_word_2_vec_models(self, word_to_vec_dict):
         """
@@ -162,26 +163,27 @@ class Utterance2TensorCreator(object):
     def compute_tensor_embedding(self, utterance_dict, utterance_offsets_info_dict, nlp_spans):
         utterance = utterance_dict[CSQA_UTTERANCE]
         counter = 0
+        embedded_seqs = []
 
         for offset_tuple, is_entity in utterance_offsets_info_dict.items():
             # [  [ [token-1_model-1 embedding],...,[token-1_model-n embedding] ],...,
             # [ [token-k_model-1 embedding],...,[token-k_model-n embedding] ]  ]
-            # embedded_sequence = self.compute_sequence_embedding(text=utterance, offset_tuple=offset_tuple,
-            #                                                     is_entity=is_entity)
 
             nlp_span = nlp_spans[counter]
-            embedded_sequence = self.compute_sequence_embedding(txt=utterance, offset_tuple=offset_tuple,
-                                                                is_entity=is_entity, nlp_span=nlp_span)
-            counter += 1
+            embedded_seq = self.compute_sequence_embedding(txt=utterance, offset_tuple=offset_tuple,
+                                                           is_entity=is_entity, nlp_span=nlp_span)
+            embedded_seqs += embedded_seq
 
-            ##############
+        padded_seqs = [self.add_padding_to_embedding(seq_embedding=embedded_seq) for embedded_seq in embedded_seqs]
+        tensor_embedding = self.create_tensor(padded_seqs=padded_seqs)
+
+        return tensor_embedding
 
     def create_instances_for_prediction(self):
         pass
 
     def create_instance_dict(self, is_training_instance):
         pass
-
 
     def get_sequence_embedding_for_entity(self, entity, nlp_span, use_part_of_speech_embedding=False):
         """
@@ -298,3 +300,45 @@ class Utterance2TensorCreator(object):
 
         return seq_embedding
 
+    def add_padding_to_embedding(self, seq_embedding):
+        """
+
+        :param seq_embedding:
+        :return:
+        """
+        num_tokens = len(seq_embedding)
+        left_padding_size = (self.max_num_utter_tokens - num_tokens) // 2
+        right_padding_size = self.max_num_utter_tokens - num_tokens - left_padding_size
+
+        shape_for_left_padding = (
+            left_padding_size, len(self.word_to_vec_models), self.features_spec_dict[WORD_VEC_DIM])
+        shape_for_right_padding = (
+            right_padding_size, len(self.word_to_vec_models), self.features_spec_dict[WORD_VEC_DIM])
+
+        left_padding = np.zeros(shape=shape_for_left_padding).tolist()
+        right_padding = np.zeros(shape=shape_for_right_padding).tolist()
+
+        seq_padded = left_padding + seq_embedding + right_padding
+
+        return seq_padded
+
+    def create_tensor(self, padded_seqs):
+        """
+
+        :param padded_seqs:
+        :rtype: numpy.array()
+        """
+        full_seq_embedding = []
+
+        for padded_seq in padded_seqs:
+            full_seq_embedding += padded_seq
+
+        num_rows = self.max_num_utter_tokens
+        num_columns = self.features_spec_dict[WORD_VEC_DIM]
+        num_channels = len(self.word_to_vec_models)
+        tensor_shape = (num_rows, num_columns, num_channels)
+
+        full_seq_embedding = np.array(full_seq_embedding, dtype=float)
+        tensor_embedding = np.reshape(full_seq_embedding, newshape=tensor_shape)
+
+        return tensor_embedding
