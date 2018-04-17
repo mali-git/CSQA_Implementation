@@ -29,10 +29,10 @@ class Utterance2TensorCreator(object):
 
         assert (word_to_vec_dict is not None)
 
-        if WORD_VEC_DIM not in self.features_spec_dict:
+        if WORD_VEC_DIM not in features_spec_dict:
             raise Exception("Specify 'WORD_VEC_DIM'")
 
-        if POSITION_VEC_DIM in self.features_spec_dict:
+        if POSITION_VEC_DIM in features_spec_dict:
             log.info("Position embeddings are not supported in current version, but will be available in version 0.1.2")
 
         self.word_to_vec_models = self.load_word_2_vec_models(word_to_vec_dict=word_to_vec_dict)
@@ -170,8 +170,8 @@ class Utterance2TensorCreator(object):
             #                                                     is_entity=is_entity)
 
             nlp_span = nlp_spans[counter]
-            embedded_sequence = self.beta_compute_sequence_embedding(txt=utterance, offset_tuple=offset_tuple,
-                                                                     is_entity=is_entity, nlp_span=nlp_span)
+            embedded_sequence = self.compute_sequence_embedding(txt=utterance, offset_tuple=offset_tuple,
+                                                                is_entity=is_entity, nlp_span=nlp_span)
             counter += 1
 
             ##############
@@ -182,53 +182,6 @@ class Utterance2TensorCreator(object):
     def create_instance_dict(self, is_training_instance):
         pass
 
-    def compute_sequence_embedding(self, text, offset_tuple, is_entity):
-        """
-        Computes the embeddings for a sequence. For each part of the sequence the corresponding embedding is computed.
-        :param text: Sequence to embed
-        :param offset_tuple: Tuple containing start and position of sequence in text
-        :param is_entity: Flag indicating, whether sequence represent and entity.
-        :rtype: list:
-        [  [ [token-1_model-1 feature embedding],...,[token-1_model-n feature embedding] ], ... ,
-        [ [token-k_model-1 feature embedding],...,[token-k_model-n feature embedding] ]  ]
-        """
-        start = offset_tuple[0]
-        end = offset_tuple[1]
-        # Additional features
-        use_part_of_speech_embedding = False
-
-        if PART_OF_SPEECH_VEC_DIM in self.features_spec_dict:
-            use_part_of_speech_embedding = True
-
-        if is_entity:
-            entity = text[start:end]
-            seq_embedding = self.get_sequence_embedding_for_entity(entity=entity, use_part_of_speech_embedding=
-            use_part_of_speech_embedding)
-            seq_embedding = [seq_embedding]
-        else:
-            part_of_speech_embeddings = []
-            # Remove preceding and succeeding whitespaces
-            seq = text[start:end].strip()
-            # Tokenize
-            tokens = [token for token in self.nlp_parser(seq)]
-            # [  [ [token-1_model-1 embedding],...,[token-1_model-n embedding] ],...,[ [token-k_model-1 embedding],...,
-            # [token-k_model-n embedding] ]  ]
-            token_embeddings = [self.get_embeddings_for_token(token) for token in tokens]
-            seq_embedding = token_embeddings
-
-            # FIXME: POS-Tagging should be applied on whole sentence since result can change.
-            if use_part_of_speech_embedding:
-                log.info("POS-tagging in current version can cause problems")
-                for i, token in enumerate(tokens):
-                    part_of_speech_embedding = self.get_part_of_speech_embedding(pos_tag=token)
-                    # Copy POS-tag embedding if several word2Vec models should be used
-                    n_times_part_of_speech_embedding = np.repeat(a=[part_of_speech_embedding],
-                                                                 repeats=len(self.word_to_vec_models), axis=0).tolist()
-                    part_of_speech_embeddings.append(n_times_part_of_speech_embedding)
-
-                    # TODO: Merge feature embeddings: self.merge_feature_embeddings()
-
-        return seq_embedding
 
     def get_sequence_embedding_for_entity(self, entity, nlp_span, use_part_of_speech_embedding=False):
         """
@@ -304,14 +257,14 @@ class Utterance2TensorCreator(object):
     def merge_feature_embeddings(self):
         pass
 
-    def beta_compute_sequence_embedding(self, txt, offset_tuple,
-                                        is_entity, nlp_span):
+    def compute_sequence_embedding(self, txt, offset_tuple,
+                                   is_entity, nlp_span):
         """
 
         :param txt: Text from which substrings are extracted.
-        :param offset_tuple: Dict containing information abour all relevant substring.
-        :param is_entity:
-        :param nlp_span:
+        :param offset_tuple: Tuple containing offset information about the substring to process.
+        :param is_entity: Flag indicating whether relevant substring represents an entity.
+        :param nlp_span: Container containing all NLP features for relevant substring.
         :rtype: list
         [  [ [token-1_model-1 feature embedding],...,[token-1_model-n feature embedding] ], ... ,
         [ [token-k_model-1 feature embedding],...,[token-k_model-n feature embedding] ]  ]
@@ -333,6 +286,7 @@ class Utterance2TensorCreator(object):
         else:
             tokens = [token.text for token in nlp_span]
             token_embeddings = [self.get_embeddings_for_token(token) for token in tokens]
+            seq_embedding = token_embeddings
 
             if use_part_of_speech_embedding:
                 for token in tokens:
@@ -341,3 +295,6 @@ class Utterance2TensorCreator(object):
                     n_times_part_of_speech_embedding = np.repeat(a=[part_of_speech_embedding],
                                                                  repeats=len(self.word_to_vec_models), axis=0).tolist()
                     # TODO: Merge features
+
+        return seq_embedding
+
