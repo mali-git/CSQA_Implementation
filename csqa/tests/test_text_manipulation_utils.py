@@ -100,7 +100,6 @@ class TestTextManipulationUtils(unittest.TestCase):
 
         correct_entity_info = [False, True, False]
         correct_parts = [(0, start_entity), (start_entity, end_entity), (end_entity, end_entity + 1)]
-        print(correct_parts)
         counter = 0
 
         self.assertEqual(len(offsets_info_dict), 3)
@@ -147,7 +146,6 @@ class TestTextManipulationUtils(unittest.TestCase):
 
         # Case: Last token is not an entity
         offsets_info_dict[(34, 39)] = False
-        print(offsets_info_dict)
         spans = compute_nlp_features(txt=txt, offsets_info_dict=offsets_info_dict)
 
         span_four = spans[3]
@@ -166,7 +164,6 @@ class TestTextManipulationUtils(unittest.TestCase):
         spans = compute_nlp_features(txt=txt, offsets_info_dict=offsets_info_dict)
 
         self.assertEqual(len(spans), 5)
-        print(spans)
         # Check for correct offset assignments
         for span in spans:
             if span.label == 1:
