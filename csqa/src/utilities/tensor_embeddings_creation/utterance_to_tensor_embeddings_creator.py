@@ -174,7 +174,7 @@ class Utterance2TensorCreator(object):
                                                            is_entity=is_entity, nlp_span=nlp_span)
             embedded_seqs += embedded_seq
 
-        padded_seqs = [self.add_padding_to_embedding(seq_embedding=embedded_seq) for embedded_seq in embedded_seqs]
+        padded_seqs = self.add_padding_to_embedding(seq_embedding=embedded_seqs)
         tensor_embedding = self.create_tensor(padded_seqs=padded_seqs)
 
         return tensor_embedding
@@ -187,7 +187,8 @@ class Utterance2TensorCreator(object):
 
     def get_sequence_embedding_for_entity(self, entity, nlp_span, use_part_of_speech_embedding=False):
         """
-        Compute the embedding of an entity (single token or several tokens)
+        Compute the embedding of an entity (single token or several tokens). If several word2Vec models are specified,
+        then the entity embedding is returned # word2Vec models-times
         :param entity: Entity for which embedding should be computed
         :param nlp_span: Container containing all NLP features (tokens,POS-tag,dependency parsing etc.) for entity
         :param use_part_of_speech_embedding: Flag indicating whether POS-tag embedding should be computed
@@ -214,6 +215,8 @@ class Utterance2TensorCreator(object):
             # Concatenate entity embeddings with POS-Tag embeddings:
             # [ [kg_embedding feature embedding],...,[kg_embedding  feature embedding] ]
             seq_embedding = np.concatenate([seq_embedding, part_of_speech_embeddings], axis=0)
+
+        seq_embedding = [seq_embedding]
 
         return seq_embedding
 
@@ -284,7 +287,6 @@ class Utterance2TensorCreator(object):
             seq_embedding = self.get_sequence_embedding_for_entity(entity=entity, nlp_span=nlp_span,
                                                                    use_part_of_speech_embedding=
                                                                    use_part_of_speech_embedding)
-            seq_embedding = [seq_embedding]
         else:
             tokens = [token.text for token in nlp_span]
             token_embeddings = [self.get_embeddings_for_token(token) for token in tokens]
@@ -302,9 +304,10 @@ class Utterance2TensorCreator(object):
 
     def add_padding_to_embedding(self, seq_embedding):
         """
-
-        :param seq_embedding:
-        :return:
+        Adds zero padding vectors to the left and right of an embedded sequence if number of embedding tokens
+        is smaller than self.max_num_utter_tokens.
+        :param seq_embedding: Complete embedded sequence of a text
+        :rtype: list
         """
         num_tokens = len(seq_embedding)
         left_padding_size = (self.max_num_utter_tokens - num_tokens) // 2
