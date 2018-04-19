@@ -46,7 +46,6 @@ class Utterance2TensorCreator(object):
         self.part_of_speech_embedding_dict = dict()
         self.dummy_entity_embedding = np.random.uniform(low=-0.1, high=0.1,
                                                         size=(self.features_spec_dict[WORD_VEC_DIM],)).tolist()
-        self.padding_embedding = np.zeros(shape=(self.features_spec_dict[WORD_VEC_DIM]))
 
     def load_word_2_vec_models(self, word_to_vec_dict):
         """
