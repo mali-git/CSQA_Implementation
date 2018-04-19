@@ -1,12 +1,13 @@
 import logging
+from collections import OrderedDict
 
 import numpy as np
 import spacy
-from collections import OrderedDict
 from gensim.models import KeyedVectors
 
 from utilities.constants import WORD_VEC_DIM, CSQA_UTTERANCE, CSQA_ENTITIES_IN_UTTERANCE, POSITION_VEC_DIM, \
-    PART_OF_SPEECH_VEC_DIM
+    PART_OF_SPEECH_VEC_DIM, INSTANCE_ID, QUESTION_ENTITIES, ANSWER_ENTITIES, QUESTION_UTTERANCE, ANSWER_UTTERANCE, \
+    CSQA_RELATIONS, PREDICATE_IDS_QUESTION, QUESTION_UTTERANCE_EMBEDDED, PREDICATE_IDS_ANSWER, ANSWER_UTTERANCE_EMBEDDED
 from utilities.corpus_preprocessing.load_dialogues import load_data_from_json_file
 from utilities.corpus_preprocessing.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text, \
     compute_nlp_features
@@ -127,10 +128,56 @@ class Utterance2TensorCreator(object):
                                                             nlp_spans=answer_nlp_spans)
 
             # Step 3: Create training instance
-            training_instance_dict = self.create_instance_dict(is_training_instance=True)
+            instance_id = file_id + '_question_' + str(i)
+
+            training_instance_dict = self.create_instance_dict(instance_id=instance_id,
+                                                               is_training_instance=True,
+                                                               embedded_utterance_one=embedded_question,
+                                                               utterance_one_dict=question,
+                                                               embedded_utterance_two=embedded_answer,
+                                                               utterance_two_dict=answer)
             training_instance_dicts.append(training_instance_dict)
 
         return training_instance_dict
+
+    def create_instances_for_prediction(self, dialogue, file_id):
+
+        prediction_instance_dicts = []
+
+        for i in range(len(dialogue)):
+            utterance_dict = dialogue[i]
+
+            utterance_txt = utterance_dict[CSQA_UTTERANCE]
+
+            # Step 1: Get offsets of utterance-parts based on mentioned entites
+            relevant_entity_start_offsets_in_utterance, relevant_entity_end_offsets_in_question = \
+                self.get_offsets_of_relevant_entities_in_utterance(
+                    utterance_dict)
+
+            utterance_offset_info_dict = mark_parts_in_text(
+                start_offsets_entities=relevant_entity_start_offsets_in_utterance,
+                end_offsets_entities=relevant_entity_end_offsets_in_question,
+                text=utterance_txt)
+
+            # Step 2: Compute NLP features
+            utterance_nlp_spans = compute_nlp_features(txt=utterance_txt,
+                                                       offsets_info_dict=utterance_offset_info_dict)
+
+            # Step 3: Compute tensor embedding for utterance
+            embedded_utterance = self.compute_tensor_embedding(utterance_dict=utterance_dict,
+                                                               utterance_offsets_info_dict=utterance_offset_info_dict,
+                                                               nlp_spans=utterance_nlp_spans)
+
+            # Step 3: Create training instance
+            instance_id = file_id + '_utterance_' + str(i)
+
+            prediction_instance_dict = self.create_instance_dict(instance_id=instance_id,
+                                                                 is_training_instance=True,
+                                                                 embedded_utterance_one=embedded_utterance,
+                                                                 utterance_one_dict=utterance_dict)
+            prediction_instance_dicts.append(prediction_instance_dict)
+
+        return prediction_instance_dict
 
     def get_offsets_of_relevant_entities_in_utterance(self, utterance_dict):
         """
@@ -175,15 +222,38 @@ class Utterance2TensorCreator(object):
             embedded_seqs += embedded_seq
 
         padded_seqs = self.add_padding_to_embedding(seq_embedding=embedded_seqs)
-        tensor_embedding = self.create_tensor(padded_seqs=padded_seqs)
+        tensor_embedding = self.create_tensor(embedded_sequence=padded_seqs)
 
         return tensor_embedding
 
-    def create_instances_for_prediction(self):
-        pass
+    def create_instance_dict(self, instance_id, is_training_instance, embedded_utterance_one, utterance_one_dict,
+                             embedded_utterance_two=None,
+                             utterance_two_dict=None):
+        """
 
-    def create_instance_dict(self, is_training_instance):
-        pass
+        :param embedded_utterance_one:
+        :param embedded_utterance_two:
+        :param utterance_one_dict:
+        :param utterance_two_dict:
+        :param instance_id:
+        :param is_training_instance:
+        :return:
+        """
+
+        instance_dict = OrderedDict()
+        instance_dict[INSTANCE_ID] = instance_id
+        instance_dict[QUESTION_ENTITIES] = utterance_one_dict[CSQA_ENTITIES_IN_UTTERANCE]
+        instance_dict[PREDICATE_IDS_QUESTION] = utterance_one_dict[CSQA_RELATIONS]
+        instance_dict[QUESTION_UTTERANCE] = utterance_one_dict[CSQA_UTTERANCE]
+        instance_dict[QUESTION_UTTERANCE_EMBEDDED] = embedded_utterance_one
+
+        if is_training_instance:
+            instance_dict[ANSWER_ENTITIES] = utterance_two_dict[CSQA_ENTITIES_IN_UTTERANCE]
+            instance_dict[PREDICATE_IDS_ANSWER] = utterance_two_dict[CSQA_RELATIONS]
+            instance_dict[ANSWER_UTTERANCE] = utterance_two_dict[CSQA_UTTERANCE]
+            instance_dict[ANSWER_UTTERANCE_EMBEDDED] = embedded_utterance_two
+
+        return instance_dict
 
     def get_sequence_embedding_for_entity(self, entity, nlp_span, use_part_of_speech_embedding=False):
         """
@@ -325,23 +395,29 @@ class Utterance2TensorCreator(object):
 
         return seq_padded
 
-    def create_tensor(self, padded_seqs):
+    def create_tensor(self, embedded_sequence):
         """
-
-        :param padded_seqs:
-        :rtype: numpy.array()
+        Creates a tensor representation of the embedded sequence with the expected shape.
+        Each row represents represents an embedded word or entity. The number of columns indicate the embedding
+        dimension. If more than one word2Vec model is used, an additional layer will be added representing the channel
+        dimension (like in a picture). Then in each channel one representation of a word/entity is saved.
+        :param embedded_sequence: List containing the embeddings of the sequence. Order matters.
+        :rtype: numpy.array() with shape= (#-tokens, word vector dimension, #-word2Vec models)
         """
-        full_seq_embedding = []
-
-        for padded_seq in padded_seqs:
-            full_seq_embedding += padded_seq
 
         num_rows = self.max_num_utter_tokens
         num_columns = self.features_spec_dict[WORD_VEC_DIM]
-        num_channels = len(self.word_to_vec_models)
-        tensor_shape = (num_rows, num_columns, num_channels)
+        num_word_to_vec_models = len(self.word_to_vec_models)
 
-        full_seq_embedding = np.array(full_seq_embedding, dtype=float)
-        tensor_embedding = np.reshape(full_seq_embedding, newshape=tensor_shape)
+        if num_word_to_vec_models > 1:
+            num_channels = num_word_to_vec_models
+            tensor_shape = (num_rows, num_columns, num_word_to_vec_models, num_word_to_vec_models)
+            # TODO: Replace implementation in next version
+            tensor_embedding = [np.stack(embeddings_of_tokens, axis=-1) for embeddings_of_tokens in embedded_sequence]
+            tensor_embedding = np.array(tensor_embedding)
+        else:
+            tensor_shape = (num_rows, num_columns, num_word_to_vec_models)
+            embedded_sequence = np.array(embedded_sequence, dtype=float)
+            tensor_embedding = np.reshape(embedded_sequence, newshape=tensor_shape)
 
         return tensor_embedding
