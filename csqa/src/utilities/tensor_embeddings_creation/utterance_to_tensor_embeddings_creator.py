@@ -150,13 +150,13 @@ class Utterance2TensorCreator(object):
             utterance_txt = utterance_dict[CSQA_UTTERANCE]
 
             # Step 1: Get offsets of utterance-parts based on mentioned entites
-            relevant_entity_start_offsets_in_utterance, relevant_entity_end_offsets_in_question = \
+            relevant_entity_start_offsets_in_utterance, relevant_entity_end_offsets_in_utterance = \
                 self.get_offsets_of_relevant_entities_in_utterance(
                     utterance_dict)
 
             utterance_offset_info_dict = mark_parts_in_text(
                 start_offsets_entities=relevant_entity_start_offsets_in_utterance,
-                end_offsets_entities=relevant_entity_end_offsets_in_question,
+                end_offsets_entities=relevant_entity_end_offsets_in_utterance,
                 text=utterance_txt)
 
             # Step 2: Compute NLP features
