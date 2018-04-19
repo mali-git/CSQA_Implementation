@@ -1,8 +1,8 @@
 import logging
 import unittest
+from collections import OrderedDict
 
 import numpy as np
-from collections import OrderedDict
 
 from utilities.constants import WORD_VEC_DIM
 from utilities.corpus_preprocessing.text_manipulation_utils import compute_nlp_features
@@ -14,24 +14,37 @@ log = logging.getLogger(__name__)
 
 
 class TestUtterance2TensorCreator(unittest.TestCase):
-    def setUp(self):
-        self.feature_specification_dict = get_feature_specification_dict(word_vec_dim=100, position_vec_dim=None,
+
+    def initialize_utterance_to_tensor_creator(self, num_word_to_vec_models, word_vec_dim=100, max_num_utter_tokens=15):
+
+        assert (num_word_to_vec_models <= 2)
+
+        self.feature_specification_dict = get_feature_specification_dict(word_vec_dim=word_vec_dim,
+                                                                         position_vec_dim=None,
                                                                          part_of_speech_vec_dim=None)
 
         path_to_entity_mapping_file = '../test_resources/filtered_entity_mapping.json'
         path_to_word_vec_model_one = '../test_resources/word2Vec_model_one'
-        path_to_word_vec_model_two = '../test_resources/word2Vec_model_two'
-        word_to_vec_model_dict = dict()
-        word_to_vec_model_dict[path_to_word_vec_model_one] = [False, False]
-        word_to_vec_model_dict[path_to_word_vec_model_two] = [False, False]
 
-        self.embedding_creator = Utterance2TensorCreator(max_num_utter_tokens=15,
+        word_to_vec_model_dict = dict()
+
+        word_to_vec_model_dict[path_to_word_vec_model_one] = [False, False]
+
+        if num_word_to_vec_models == 2:
+            path_to_word_vec_model_two = '../test_resources/word2Vec_model_two'
+            word_to_vec_model_dict[path_to_word_vec_model_two] = [False, False]
+
+        self.embedding_creator = Utterance2TensorCreator(max_num_utter_tokens=max_num_utter_tokens,
                                                          features_spec_dict=self.feature_specification_dict,
                                                          path_to_entity_id_to_label_mapping=path_to_entity_mapping_file,
                                                          word_to_vec_dict=word_to_vec_model_dict,
                                                          path_to_kb_embeddings=None)
 
     def test_compute_sequence_embedding(self):
+
+        # Initialize 'Utterance2TensorCreator'
+        self.initialize_utterance_to_tensor_creator(num_word_to_vec_models=2)
+
         txt = 'The chancellor of Germany visited Paris in February this year.'
         offsets_info_dict = OrderedDict()
         offset_tuple_one = (0, 4)
@@ -50,10 +63,7 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         word_vec_dim = self.feature_specification_dict[WORD_VEC_DIM]
 
         spans = compute_nlp_features(txt=txt, offsets_info_dict=offsets_info_dict)
-        span_one = spans[0]
         span_two = spans[1]
-        span_three = spans[2]
-        span_four = spans[3]
         span_five = spans[4]
 
         # Case: Substring doesn't represent an entity: ' in February this year'
@@ -76,6 +86,10 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         self.assertEqual(embedded_seq.shape, (1, num_word_to_vec_models, word_vec_dim))
 
     def test_get_sequence_embedding_for_entity(self):
+
+        # Initialize 'Utterance2TensorCreator'
+        self.initialize_utterance_to_tensor_creator(num_word_to_vec_models=2)
+
         txt = 'The chancellor of Germany visited Paris in February this year.'
         offsets_info_dict = OrderedDict()
         offset_tuple_one = (0, 4)
@@ -109,6 +123,10 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         self.assertEqual(entity_embedding.shape, shape_of_entity_embedding)
 
     def test_add_padding_to_embedding(self):
+
+        # Initialize 'Utterance2TensorCreator'
+        self.initialize_utterance_to_tensor_creator(num_word_to_vec_models=2)
+
         txt = 'The chancellor of Germany visited Paris in February this year.'
         offsets_info_dict = OrderedDict()
         offset_tuple_one = (0, 4)
@@ -137,24 +155,89 @@ class TestUtterance2TensorCreator(unittest.TestCase):
 
             nlp_span = spans[counter]
             embedded_seq = self.embedding_creator.compute_sequence_embedding(txt=txt, offset_tuple=offset_tuple,
-                                                           is_entity=is_entity, nlp_span=nlp_span)
+                                                                             is_entity=is_entity, nlp_span=nlp_span)
             embedded_seqs += embedded_seq
             counter += 1
 
         seq_padded = self.embedding_creator.add_padding_to_embedding(seq_embedding=embedded_seqs)
         num_total_embedded_tokens = len(seq_padded)
 
-        self.assertEqual(self.embedding_creator.max_num_utter_tokens,num_total_embedded_tokens)
+        self.assertEqual(self.embedding_creator.max_num_utter_tokens, num_total_embedded_tokens)
 
         seq_padded = np.array(seq_padded)
 
         num_left_padded_vecs = 2
-        left_padding = np.zeros(shape=(num_left_padded_vecs,num_word_to_vec_models,word_vec_dim))
+        left_padding = np.zeros(shape=(num_left_padded_vecs, num_word_to_vec_models, word_vec_dim))
         right_padding = np.zeros(shape=(num_left_padded_vecs, num_word_to_vec_models, word_vec_dim))
 
-        self.assertTrue(np.array_equal(seq_padded[0:2],left_padding))
-        self.assertTrue(np.array_equal(seq_padded[-2:], left_padding))
+        self.assertTrue(np.array_equal(seq_padded[0:2], left_padding))
+        self.assertTrue(np.array_equal(seq_padded[-2:], right_padding))
 
+    def test_create_tensor(self):
+
+        # Case: Use two word2Vec models
+        # Initialize 'Utterance2TensorCreator'
+        max_num_utter_tokens = 4
+        word_vec_dim = 3
+        num_word_to_vec_models = 2
+        self.initialize_utterance_to_tensor_creator(num_word_to_vec_models=num_word_to_vec_models,
+                                                    word_vec_dim=word_vec_dim,
+                                                    max_num_utter_tokens=max_num_utter_tokens)
+
+        token_one_embeddings = [[1., 1., 1.], [1.5, 1.5, 1.5]]
+        token_two_embeddings = [[2., 2., 2.], [2.5, 2.5, 2.5]]
+        padding = [[0., 0., 0.], [0., 0., 0.]]
+        seq_embedding = [padding, token_one_embeddings, token_two_embeddings, padding]
+
+        embedded_tensor = self.embedding_creator.create_tensor(embedded_sequence=seq_embedding)
+        expected_shape = (max_num_utter_tokens, word_vec_dim, num_word_to_vec_models)
+
+        self.assertEqual(embedded_tensor.shape, expected_shape)
+
+        first_token_embeddings = embedded_tensor[0]
+        second_token_embeddings = embedded_tensor[1]
+        third_token_embeddings = embedded_tensor[2]
+        fourth_token_embeddings = embedded_tensor[3]
+
+        first_token_embedding_expexted = np.zeros(shape=(word_vec_dim,num_word_to_vec_models))
+        second_token_embedding_expexted = np.array([[1, 1.5], [1, 1.5,], [1, 1.5]])
+        third_token_embedding_expexted = np.array([[2, 2.5], [2, 2.5,], [2, 2.5]])
+        fourth_token_embedding_expexted = np.zeros(shape=(word_vec_dim,num_word_to_vec_models))
+
+        self.assertTrue(np.array_equal(first_token_embeddings,first_token_embedding_expexted))
+        self.assertTrue(np.array_equal(second_token_embeddings, second_token_embedding_expexted))
+        self.assertTrue(np.array_equal(third_token_embeddings, third_token_embedding_expexted))
+        self.assertTrue(np.array_equal(fourth_token_embeddings, fourth_token_embedding_expexted))
+
+
+        # Case: Use one wor2Vec model
+        # Initialize 'Utterance2TensorCreator'
+        max_num_utter_tokens = 4
+        word_vec_dim = 3
+        num_word_to_vec_models = 1
+        self.initialize_utterance_to_tensor_creator(num_word_to_vec_models=num_word_to_vec_models,
+                                                    word_vec_dim=word_vec_dim,
+                                                    max_num_utter_tokens=max_num_utter_tokens)
+
+        token_one_embeddings = [[1., 1., 1.]]
+        token_two_embeddings = [[2., 2., 2.]]
+        padding = [[0., 0., 0.]]
+        seq_embedding = [padding, token_one_embeddings, token_two_embeddings, padding]
+
+        embedded_tensor = self.embedding_creator.create_tensor(embedded_sequence=seq_embedding)
+        expected_shape = (max_num_utter_tokens, word_vec_dim, num_word_to_vec_models)
+
+        self.assertEqual(embedded_tensor.shape, expected_shape)
+
+        first_token_embeddings = embedded_tensor[0]
+        second_token_embeddings = embedded_tensor[1]
+        third_token_embeddings = embedded_tensor[2]
+        fourth_token_embeddings = embedded_tensor[3]
+
+        first_token_embedding_expexted = np.zeros(shape=(word_vec_dim, num_word_to_vec_models))
+        second_token_embedding_expexted = np.array([[1], [1], [1]])
+        third_token_embedding_expexted = np.array([[2], [2], [2]])
+        fourth_token_embedding_expexted = np.zeros(shape=(word_vec_dim, num_word_to_vec_models))
 
 
 if __name__ == '__main__':
