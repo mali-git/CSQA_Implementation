@@ -144,8 +144,8 @@ class Utterance2TensorCreator(object):
 
         prediction_instance_dicts = []
 
-        for i in range(len(dialogue)):
-            utterance_dict = dialogue[i]
+        for i,dialogue in enumerate(dialogue):
+            utterance_dict = dialogue
 
             utterance_txt = utterance_dict[CSQA_UTTERANCE]
 
