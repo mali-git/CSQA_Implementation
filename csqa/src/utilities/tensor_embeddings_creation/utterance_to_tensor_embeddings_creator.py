@@ -410,7 +410,7 @@ class Utterance2TensorCreator(object):
 
         if num_word_to_vec_models > 1:
             num_channels = num_word_to_vec_models
-            tensor_shape = (num_rows, num_columns, num_word_to_vec_models, num_word_to_vec_models)
+            tensor_shape = (num_rows, num_columns, num_word_to_vec_models)
             # TODO: Replace implementation in next version
             tensor_embedding = [np.stack(embeddings_of_tokens, axis=-1) for embeddings_of_tokens in embedded_sequence]
             tensor_embedding = np.array(tensor_embedding)
