@@ -1,7 +1,7 @@
 import logging
 import click
 
-from utilities.corpus_preprocessing.load_dialogues import retrieve_dialogues
+from utilities.corpus_preprocessing_utils.load_dialogues import retrieve_dialogues
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
