@@ -36,10 +36,10 @@ class Utterance2TensorCreator(object):
         if POSITION_VEC_DIM in features_spec_dict:
             log.info("Position embeddings are not supported in current version, but will be available in version 0.1.2")
 
-        self.word_to_vec_models = self.load_word_2_vec_models(word_to_vec_dict=word_to_vec_dict)
+        self.word_to_vec_models = self._load_word_2_vec_models(word_to_vec_dict=word_to_vec_dict)
         self.out_of_vocab_words_mappings = [OrderedDict() for _ in range(len(self.word_to_vec_models))]
-        self.entity_id_to_label_dict = self.load_entity_to_label_mapping(path_to_entity_id_to_label_mapping)
-        self.kg_embeddings_dict = self.load_kg_embeddings(path_to_kb_embeddings=path_to_kb_embeddings)
+        self.entity_id_to_label_dict = self._load_entity_to_label_mapping(path_to_entity_id_to_label_mapping)
+        self.kg_embeddings_dict = self._load_kg_embeddings(path_to_kb_embeddings=path_to_kb_embeddings)
         self.max_num_utter_tokens = max_num_utter_tokens
         self.features_spec_dict = features_spec_dict
         self.nlp_parser = spacy.load('en')
@@ -47,7 +47,7 @@ class Utterance2TensorCreator(object):
         self.dummy_entity_embedding = np.random.uniform(low=-0.1, high=0.1,
                                                         size=(self.features_spec_dict[WORD_VEC_DIM],)).tolist()
 
-    def load_word_2_vec_models(self, word_to_vec_dict):
+    def _load_word_2_vec_models(self, word_to_vec_dict):
         """
         Loads word2Vec models from disk.
         :param word_to_vec_dict: Dictionary containing as keys the paths to the word2Vec models. Each value in dict
@@ -68,14 +68,43 @@ class Utterance2TensorCreator(object):
 
         return word_to_vec_models
 
-    def load_kg_embeddings(self, path_to_kb_embeddings):
+    def _load_kg_embeddings(self, path_to_kb_embeddings):
         pass
 
-    def load_entity_to_label_mapping(self, path_to_entity_id_to_label_mapping):
+    def _load_entity_to_label_mapping(self, path_to_entity_id_to_label_mapping):
         return load_data_from_json_file(path_to_entity_id_to_label_mapping)
 
-    def load_entity_to_predicate_mapping(self, path_to_predicate_id_to_label_mapping):
+    def _load_entity_to_predicate_mapping(self, path_to_predicate_id_to_label_mapping):
         return load_data_from_json_file(path_to_predicate_id_to_label_mapping)
+
+    def _apply_instance_creation_steps(self, utterance_dict):
+        """
+
+        :param utterance_dict:
+        :return:
+        """
+        utterance_txt = utterance_dict[CSQA_UTTERANCE]
+
+        # Step 1: Get offsets of utterance-parts based on mentioned entites
+        relevant_entity_start_offsets_in_utterance, relevant_entity_end_offsets_in_utterance = \
+            self.get_offsets_of_relevant_entities_in_utterance(
+                utterance_dict)
+
+        utterance_offset_info_dict = mark_parts_in_text(
+            start_offsets_entities=relevant_entity_start_offsets_in_utterance,
+            end_offsets_entities=relevant_entity_end_offsets_in_utterance,
+            text=utterance_txt)
+
+        # Step 2: Compute NLP features
+        utterance_nlp_spans = compute_nlp_features(txt=utterance_txt,
+                                                   offsets_info_dict=utterance_offset_info_dict)
+
+        # Step 3: Compute tensor embedding for utterance
+        embedded_utterance = self.compute_tensor_embedding(utterance_dict=utterance_dict,
+                                                           utterance_offsets_info_dict=utterance_offset_info_dict,
+                                                           nlp_spans=utterance_nlp_spans)
+
+        return embedded_utterance
 
     def create_training_instances(self, dialogue, file_id):
         """
@@ -91,40 +120,13 @@ class Utterance2TensorCreator(object):
         training_instance_dicts = []
 
         for i in range(len(questions)):
-            question = questions[i]
-            answer = answers[i]
-            question_txt = question[CSQA_UTTERANCE]
-            answer_txt = answer[CSQA_UTTERANCE]
+            question_dict = questions[i]
+            answer_dict = answers[i]
+            question_txt = question_dict[CSQA_UTTERANCE]
+            answer_txt = answer_dict[CSQA_UTTERANCE]
 
-            # Step 1: Get offsets of utterance-parts based on mentioned entites
-            relevant_entity_start_offsets_in_question, relevant_entity_end_offsets_in_question = \
-                self.get_offsets_of_relevant_entities_in_utterance(
-                    question)
-            relevant_entity_start_offsets_in_answer, relevant_entity_end_offsets_in_answer = \
-                self.get_offsets_of_relevant_entities_in_utterance(answer)
-
-            question_offset_info_dict = mark_parts_in_text(
-                start_offsets_entities=relevant_entity_start_offsets_in_question,
-                end_offsets_entities=relevant_entity_end_offsets_in_question,
-                text=question_txt)
-
-            answer_offset_info_dict = mark_parts_in_text(start_offsets_entities=relevant_entity_start_offsets_in_answer,
-                                                         end_offsets_entities=relevant_entity_end_offsets_in_answer,
-                                                         text=answer_txt)
-
-            # Step 2: Compute NLP features
-            question_nlp_spans = compute_nlp_features(txt=question_txt,
-                                                      offsets_info_dict=question_offset_info_dict)
-            answer_nlp_spans = compute_nlp_features(txt=answer_txt,
-                                                    offsets_info_dict=answer_offset_info_dict)
-
-            # Step 3: Compute tensor embedding for utterance
-            embedded_question = self.compute_tensor_embedding(utterance_dict=question,
-                                                              utterance_offsets_info_dict=question_offset_info_dict,
-                                                              nlp_spans=question_nlp_spans)
-            embedded_answer = self.compute_tensor_embedding(utterance_dict=answer,
-                                                            utterance_offsets_info_dict=answer_offset_info_dict,
-                                                            nlp_spans=answer_nlp_spans)
+            embedded_question = self._apply_instance_creation_steps(utterance_dict=question_dict)
+            embedded_answer = self._apply_instance_creation_steps(utterance_dict=question_dict)
 
             # Step 3: Create training instance
             instance_id = file_id + '_question_' + str(i)
@@ -132,40 +134,27 @@ class Utterance2TensorCreator(object):
             training_instance_dict = self.create_instance_dict(instance_id=instance_id,
                                                                is_training_instance=True,
                                                                embedded_utterance_one=embedded_question,
-                                                               utterance_one_dict=question,
+                                                               utterance_one_dict=question_dict,
                                                                embedded_utterance_two=embedded_answer,
-                                                               utterance_two_dict=answer)
+                                                               utterance_two_dict=answer_dict)
             training_instance_dicts.append(training_instance_dict)
 
         return training_instance_dict
 
     def create_instances_for_prediction(self, dialogue, file_id):
+        """
+
+        :param dialogue:
+        :param file_id:
+        :return:
+        """
 
         prediction_instance_dicts = []
 
-        for i,utterance in enumerate(dialogue):
+        for i, utterance in enumerate(dialogue):
             utterance_dict = utterance
 
-            utterance_txt = utterance_dict[CSQA_UTTERANCE]
-
-            # Step 1: Get offsets of utterance-parts based on mentioned entites
-            relevant_entity_start_offsets_in_utterance, relevant_entity_end_offsets_in_utterance = \
-                self.get_offsets_of_relevant_entities_in_utterance(
-                    utterance_dict)
-
-            utterance_offset_info_dict = mark_parts_in_text(
-                start_offsets_entities=relevant_entity_start_offsets_in_utterance,
-                end_offsets_entities=relevant_entity_end_offsets_in_utterance,
-                text=utterance_txt)
-
-            # Step 2: Compute NLP features
-            utterance_nlp_spans = compute_nlp_features(txt=utterance_txt,
-                                                       offsets_info_dict=utterance_offset_info_dict)
-
-            # Step 3: Compute tensor embedding for utterance
-            embedded_utterance = self.compute_tensor_embedding(utterance_dict=utterance_dict,
-                                                               utterance_offsets_info_dict=utterance_offset_info_dict,
-                                                               nlp_spans=utterance_nlp_spans)
+            embedded_utterance = self._apply_instance_creation_steps(utterance_dict=utterance_dict)
 
             # Step 3: Create training instance
             instance_id = file_id + '_utterance_' + str(i)
