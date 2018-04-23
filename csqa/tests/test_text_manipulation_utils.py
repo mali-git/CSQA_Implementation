@@ -1,7 +1,7 @@
 import logging
 import unittest
 from collections import OrderedDict
-from utilities.corpus_preprocessing.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text, \
+from utilities.corpus_preprocessing_utils.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text, \
     compute_nlp_features
 
 logging.basicConfig(level=logging.INFO)

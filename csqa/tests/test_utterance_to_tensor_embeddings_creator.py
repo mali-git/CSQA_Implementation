@@ -5,9 +5,9 @@ from collections import OrderedDict
 import numpy as np
 
 from utilities.constants import WORD_VEC_DIM
-from utilities.corpus_preprocessing.text_manipulation_utils import compute_nlp_features
-from utilities.tensor_embeddings_creation.feature_utils import get_feature_specification_dict
-from utilities.tensor_embeddings_creation.utterance_to_tensor_embeddings_creator import Utterance2TensorCreator
+from utilities.corpus_preprocessing_utils.text_manipulation_utils import compute_nlp_features
+from utilities.tensor_embeddings_creation_utils.feature_utils import get_feature_specification_dict
+from utilities.tensor_embeddings_creation_utils.utterance_to_tensor_embeddings_creator import Utterance2TensorCreator
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -67,8 +67,8 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         span_five = spans[4]
 
         # Case: Substring doesn't represent an entity: ' in February this year'
-        embedded_seq = self.embedding_creator.compute_sequence_embedding(txt=txt, offset_tuple=offset_tuple_five,
-                                                                         is_entity=False, nlp_span=span_five)
+        embedded_seq = self.embedding_creator._compute_sequence_embedding(txt=txt, offset_tuple=offset_tuple_five,
+                                                                          is_entity=False, nlp_span=span_five)
 
         embedded_seq = np.array(embedded_seq)
         num_tokens_in_seq = len(span_five)
@@ -77,8 +77,8 @@ class TestUtterance2TensorCreator(unittest.TestCase):
 
         # Case: Substring represents an entity: 'chancellor of Germany'
         # For an entity a KG embedding is returned, and not three word embeddings
-        embedded_seq = self.embedding_creator.compute_sequence_embedding(txt=txt, offset_tuple=offset_tuple_two,
-                                                                         is_entity=True, nlp_span=span_two)
+        embedded_seq = self.embedding_creator._compute_sequence_embedding(txt=txt, offset_tuple=offset_tuple_two,
+                                                                          is_entity=True, nlp_span=span_two)
 
         embedded_seq = np.array(embedded_seq)
 
@@ -108,8 +108,8 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         span_two = spans[1]
         entity = 'chancellor of Germany'
 
-        entity_embedding = self.embedding_creator.get_sequence_embedding_for_entity(entity=entity, nlp_span=span_two,
-                                                                                    use_part_of_speech_embedding=False)
+        entity_embedding = self.embedding_creator._get_sequence_embedding_for_entity(entity=entity, nlp_span=span_two,
+                                                                                     use_part_of_speech_embedding=False)
 
         entity_embedding = np.array(entity_embedding)
         # Entity is considered as single token word, but NLP feature extraction is done based on actual tokens
@@ -154,12 +154,12 @@ class TestUtterance2TensorCreator(unittest.TestCase):
             # [ [token-k_model-1 embedding],...,[token-k_model-n embedding] ]  ]
 
             nlp_span = spans[counter]
-            embedded_seq = self.embedding_creator.compute_sequence_embedding(txt=txt, offset_tuple=offset_tuple,
-                                                                             is_entity=is_entity, nlp_span=nlp_span)
+            embedded_seq = self.embedding_creator._compute_sequence_embedding(txt=txt, offset_tuple=offset_tuple,
+                                                                              is_entity=is_entity, nlp_span=nlp_span)
             embedded_seqs += embedded_seq
             counter += 1
 
-        seq_padded = self.embedding_creator.add_padding_to_embedding(seq_embedding=embedded_seqs)
+        seq_padded = self.embedding_creator._add_padding_to_embedding(seq_embedding=embedded_seqs)
         num_total_embedded_tokens = len(seq_padded)
 
         self.assertEqual(self.embedding_creator.max_num_utter_tokens, num_total_embedded_tokens)
@@ -189,7 +189,7 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         padding = [[0., 0., 0.], [0., 0., 0.]]
         seq_embedding = [padding, token_one_embeddings, token_two_embeddings, padding]
 
-        embedded_tensor = self.embedding_creator.create_tensor(embedded_sequence=seq_embedding)
+        embedded_tensor = self.embedding_creator._create_tensor(embedded_sequence=seq_embedding)
         expected_shape = (max_num_utter_tokens, word_vec_dim, num_word_to_vec_models)
 
         self.assertEqual(embedded_tensor.shape, expected_shape)
@@ -224,7 +224,7 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         padding = [[0., 0., 0.]]
         seq_embedding = [padding, token_one_embeddings, token_two_embeddings, padding]
 
-        embedded_tensor = self.embedding_creator.create_tensor(embedded_sequence=seq_embedding)
+        embedded_tensor = self.embedding_creator._create_tensor(embedded_sequence=seq_embedding)
         expected_shape = (max_num_utter_tokens, word_vec_dim, num_word_to_vec_models)
 
         self.assertEqual(embedded_tensor.shape, expected_shape)
