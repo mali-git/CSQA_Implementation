@@ -109,7 +109,11 @@ def mark_parts_in_text(start_offsets_entities, end_offsets_entities, text):
             # Part does refer to an entity
             offsets_info_dict[(start_offsets_entities[i], end_offsets_entities[i])] = True
 
+    if not start_offsets_entities:
+        return offsets_info_dict
+
     end_of_last_entity = end_offsets_entities[-1]
+
     text_length = len(text)
 
     if text_length - end_of_last_entity > 0:
