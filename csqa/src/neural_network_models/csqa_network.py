@@ -8,7 +8,14 @@ log = logging.getLogger(__name__)
 
 class CSQANetwork(object):
 
-    def modelFct(self, features, labels, mode, params):
+    def model_fct(self, features, labels, mode, params):
+        """
+        :param features:
+        :param labels:
+        :param mode:
+        :param params:
+        :return:
+        """
         embedded_sequences = features[EMBEDDED_SEQUENCES]
         sequnece_lengths = self._compute_sequence_lengths(embedded_sequences)
 
@@ -44,9 +51,10 @@ class CSQANetwork(object):
 
     @staticmethod
     def _get_last_hidden_state(hidden_states, sequence_lengths):
-        batch_size = tf.shape(hidden_states)[0]
-        max_seq_length = int(hidden_states.get_shape()[1])
-        hidden_state_dimension = int(hidden_states.get_shape()[2])
+        hidden_states_shape = tf.shape(hidden_states)
+        batch_size = hidden_states_shape[0]
+        max_seq_length = hidden_states_shape[1]
+        hidden_state_dimension = hidden_states_shape[2]
         # Index is supported by tf only in first dimension,
         # so create own index = [0 * #rows + length-1, 1 * #rows + length-1, 2 * #rows + length-1, ...]
         # The index gives the position of the last time step of each sequence.
@@ -54,7 +62,7 @@ class CSQANetwork(object):
         # -1 in shape has special meaning: The size of that dimension is computed such that the
         # total size remains constant
         # flat has as many columns as hidden_states and the number of rows is inferred.
-        #  Flat has maxLength * batchSize rows
+        # flat has max_seq_length * batch_size rows
         flat = tf.reshape(hidden_states, [-1, hidden_state_dimension])
         # Collect from every instance the output of the last time step
         last_hidden_state = tf.gather(flat, index)
