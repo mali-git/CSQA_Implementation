@@ -64,12 +64,13 @@ class CSQANetwork(object):
         lengths = tf.cast(lengths, tf.int32)
         return lengths
 
+    # TODO: Remove until 30.04.2018
     @staticmethod
-    def _get_last_activation(hidden_states, sequence_lengths):
-        hidden_states_shape = tf.shape(hidden_states)
-        batch_size = hidden_states_shape[0]
-        max_seq_length = hidden_states_shape[1]
-        hidden_state_dimension = hidden_states_shape[2]
+    def _get_last_activation(activations, sequence_lengths):
+        activations_shape = tf.shape(activations)
+        batch_size = activations_shape[0]
+        max_seq_length = activations_shape[1]
+        hidden_state_dimension = activations_shape[2]
         # Index is supported by tf only in first dimension,
         # so create own index = [0 * #rows + length-1, 1 * #rows + length-1, 2 * #rows + length-1, ...]
         # The index gives the position of the last time step of each sequence.
@@ -78,7 +79,7 @@ class CSQANetwork(object):
         # total size remains constant
         # flat has as many columns as hidden_states and the number of rows is inferred.
         # flat has max_seq_length * batch_size rows
-        flat = tf.reshape(hidden_states, [-1, hidden_state_dimension])
+        flat = tf.reshape(activations, [-1, hidden_state_dimension])
         # Collect from every instance the output of the last time step
-        last_hidden_state = tf.gather(flat, index)
-        return last_hidden_state
+        last_activation = tf.gather(flat, index)
+        return last_activation
