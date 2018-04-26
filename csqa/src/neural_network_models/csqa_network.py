@@ -19,7 +19,7 @@ class CSQANetwork(object):
         :return:
         """
         embedded_sequences = features[EMBEDDED_SEQUENCES]
-        sequnece_lengths = self._compute_sequence_lengths(embedded_sequences)
+        sequenece_lengths = self._compute_sequence_lengths(embedded_sequences)
 
         # ----------------Hierarchical Encoder Decoder----------------
         with tf.variable_scope('Utterance Level Encoder'):
@@ -28,7 +28,7 @@ class CSQANetwork(object):
             _, state_tuple_utter_level = tf.nn.dynamic_rnn(
                 cell=utterance_level_encoder,
                 dtype=tf.float32,
-                sequence_length=sequnece_lengths,
+                sequence_length=sequenece_lengths,
                 inputs=embedded_sequences)
 
             # For each sequence extract the last hidden state
