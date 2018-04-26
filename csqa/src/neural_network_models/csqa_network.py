@@ -1,7 +1,7 @@
 import logging
 import tensorflow as tf
 
-from utilities.constants import EMBEDDED_SEQUENCES, NUM_UNITS_IN_LSTM_CELL
+from utilities.constants import EMBEDDED_SEQUENCES, NUM_UNITS_IN_UTTERANCE_CELL, NUM_UNITS_IN_CONTEXT_CELL
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -19,17 +19,34 @@ class CSQANetwork(object):
         embedded_sequences = features[EMBEDDED_SEQUENCES]
         sequnece_lengths = self._compute_sequence_lengths(embedded_sequences)
 
-        # ----------------Encoder----------------
-        cell = tf.nn.rnn_cell.LSTMCell(num_units=params[NUM_UNITS_IN_LSTM_CELL])
-        outputs, _ = tf.nn.dynamic_rnn(
-            cell=cell,
-            dtype=tf.float32,
-            sequence_length=sequnece_lengths,
-            inputs=embedded_sequences)
 
-        # For each sequence extract the last hidden state
-        # Shape of last [bacthSize, self.nmbrHiddenUnits]
-        last_hidden_states = self._get_last_hidden_state(outputs, sequnece_lengths)
+        # ----------------Hierarchical Encoder Decoder----------------
+        with tf.variable_scope('Utterance Level Encoder'):
+            utterance_level_encoder = tf.nn.rnn_cell.LSTMCell(num_units=params[NUM_UNITS_IN_UTTERANCE_CELL])
+            # state_tuple is a tuple containing the last hidden state and the last activation
+            _, state_tuple_utter_level = tf.nn.dynamic_rnn(
+                cell=utterance_level_encoder,
+                dtype=tf.float32,
+                sequence_length=sequnece_lengths,
+                inputs=embedded_sequences)
+
+            # For each sequence extract the last hidden state
+            # Shape of last [batch_size, NUM_UNITS_IN_LSTM_CELL]
+            # TODO: Reshape last hidden states
+            utterances_last_hidden_states = state_tuple_utter_level[0]
+
+        with tf.variable_scope('Context Level Encoder'):
+            context_level_encoder = tf.nn.rnn_cell.LSTMCell(num_units=params[NUM_UNITS_IN_CONTEXT_CELL])
+            _, state_tuple_context_level = tf.nn.dynamic_rnn(
+                cell=context_level_encoder,
+                dtype=tf.float32,
+                # TODO: Infer dimension
+                sequence_length=[],
+                inputs=utterances_last_hidden_states)
+
+        decoder = tf.nn.rnn_cell.LSTMCell(num_units=params[NUM_UNITS_IN_CONTEXT_CELL])
+
+
 
         # ----------------Key-Value Memory Network----------------
 
