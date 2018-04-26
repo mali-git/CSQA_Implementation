@@ -1,10 +1,12 @@
 import logging
+
 import tensorflow as tf
 
 from utilities.constants import EMBEDDED_SEQUENCES, NUM_UNITS_IN_UTTERANCE_CELL, NUM_UNITS_IN_CONTEXT_CELL
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
+
 
 class CSQANetwork(object):
 
@@ -18,7 +20,6 @@ class CSQANetwork(object):
         """
         embedded_sequences = features[EMBEDDED_SEQUENCES]
         sequnece_lengths = self._compute_sequence_lengths(embedded_sequences)
-
 
         # ----------------Hierarchical Encoder Decoder----------------
         with tf.variable_scope('Utterance Level Encoder'):
@@ -46,12 +47,9 @@ class CSQANetwork(object):
 
         decoder = tf.nn.rnn_cell.LSTMCell(num_units=params[NUM_UNITS_IN_CONTEXT_CELL])
 
-
-
         # ----------------Key-Value Memory Network----------------
 
         # ----------------Decoder----------------
-
 
     def _compute_sequence_lengths(self, embedded_sequneces):
         """
@@ -62,12 +60,12 @@ class CSQANetwork(object):
         # For a non-padding vector for each row a value of 1 is computed, and for padding-rows 0 is computed
         binary_flags = tf.sign(tf.reduce_max(tf.abs(embedded_sequneces), axis=2))
         # Sum of 1s indicate how many non padding vectors are contained in specific embedding
-        lengths = tf.reduce_sum(binary_flags,axis=1)
-        lengths = tf.cast(lengths,tf.int32)
+        lengths = tf.reduce_sum(binary_flags, axis=1)
+        lengths = tf.cast(lengths, tf.int32)
         return lengths
 
     @staticmethod
-    def _get_last_hidden_state(hidden_states, sequence_lengths):
+    def _get_last_activation(hidden_states, sequence_lengths):
         hidden_states_shape = tf.shape(hidden_states)
         batch_size = hidden_states_shape[0]
         max_seq_length = hidden_states_shape[1]
