@@ -40,7 +40,8 @@ WORD_TO_VEC_FLAGS_FOR_C_FORMAT = 'word_to_vec_flags_for_c_format'
 EMBEDDED_SEQUENCES = 'embedded_sequences'
 
 # TensorFlow related keys
-NUM_UNITS_IN_UTTERANCE_CELL = 'num_units_in_the_utterance_cell'
-NUM_UNITS_IN_CONTEXT_CELL = 'num_units_in_the_context_cell'
+NUM_UNITS_HRED_UTTERANCE_CELL = 'num_units_hred_utterance_cell'
+NUM_UNITS_HRED_CONTEXT_CELL = 'num_units_hred_context_cell'
+NUM_UNITS_HRED_DECODER_CELL = 'num_units_hred_decoder_cell'
 
 
