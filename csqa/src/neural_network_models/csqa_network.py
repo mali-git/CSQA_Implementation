@@ -2,7 +2,8 @@ import logging
 
 import tensorflow as tf
 
-from utilities.constants import EMBEDDED_SEQUENCES, NUM_UNITS_HRED_UTTERANCE_CELL, NUM_UNITS_HRED_CONTEXT_CELL
+from utilities.constants import EMBEDDED_SEQUENCES, NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, \
+    WORD_VEC_DIM, KEY_CELLS, VALUE_CELLS
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -24,10 +25,12 @@ class CSQANetwork(object):
         # Shape: (batch_size, max_utter_length, vec_dimension)
         embedded_sequences = features[EMBEDDED_SEQUENCES]
         sequenece_lengths = self._compute_sequence_lengths(embedded_sequences)
+        self.key_cells = features[KEY_CELLS]
+        self.value_cells = features[VALUE_CELLS]
 
         # ----------------Hierarchical Encoder----------------
         with tf.variable_scope('Utterance Level Encoder'):
-            utterance_level_encoder = tf.nn.rnn_cell.LSTMCell(num_units=params[NUM_UNITS_HRED_UTTERANCE_CELL])
+            utterance_level_encoder = tf.nn.rnn_cell.LSTMCell(num_units=params[NUM_UNITS_HRE_UTTERANCE_CELL])
 
             # state_tuple is a tuple containing the last hidden state and the last activation
             _, state_tuple_utter_level = tf.nn.dynamic_rnn(
@@ -49,7 +52,7 @@ class CSQANetwork(object):
                 num_context_utterances, 1, dimension_hidden_utterance_state))
 
         with tf.variable_scope('Context Level Encoder'):
-            context_level_encoder = tf.nn.rnn_cell.LSTMCell(num_units=params[NUM_UNITS_HRED_CONTEXT_CELL])
+            context_level_encoder = tf.nn.rnn_cell.LSTMCell(num_units=params[NUM_UNITS_HRE_CONTEXT_CELL])
 
             _, state_tuple_context_level = tf.nn.dynamic_rnn(
                 cell=context_level_encoder,
@@ -66,9 +69,53 @@ class CSQANetwork(object):
 
         # ----------------Key-Value Memory Network----------------
         with tf.variable_scope('Key Value Memory Network'):
-            pass
+            word_vec_dim = params[WORD_VEC_DIM]
+            feature_size = params[NUM_UNITS_HRE_CONTEXT_CELL]
+            num_hops = params[NUM_HOPS]
+            initial_queries = context_last_hidden_states
 
-    # ----------------Decoder----------------
+            self.R = [tf.Variable(
+                tf.truncated_normal([feature_size, feature_size],
+                                    stddev=0.1)) for R_i in range(num_hops)]
+            self.A = tf.Variable(
+                tf.truncated_normal([feature_size, word_vec_dim], stddev=0.1),
+                name="A")
+
+            # output after last iteration over memory adressing/reading
+            o = self._get_response_from_memory(num_hops=num_hops, word_vec_dim=word_vec_dim,
+                                               feature_size=feature_size,
+                                               initial_queries=initial_queries)
+
+        # ----------------Decoder----------------
+
+    def _get_response_from_memory(self, num_hops, word_vec_dim, feature_size, initial_queries):
+        """
+
+        :param num_hops:
+        :param word_vec_dim:
+        :param feature_size:
+        :param initial_queries:
+        :return:
+        """
+        # R_i: Matrix used to get query representation q_i+1
+
+        queries = initial_queries
+        k,m,n = tf.shape(self.key_cells)
+
+        for hop in range(num_hops):
+            # shape = [k,m,n] transpose to [m,k,n]
+            self.key_cells = tf.transpose(self.key_cells, [m, k, n])
+            self.key_cells = tf.reshape(self.key_cells, shape=(m, k * n))
+
+            A_keys = tf.matmul(self.A,self.key_cells)
+            # Multiply element wise and then add along columns: Compute dot product for each element of batch
+            memory_confidence_scores = tf.reduce_sum(queries * A_keys,axis=1)
+            memory_probabilities = tf.nn.softmax(memory_confidence_scores)
+
+            self.value_cells = tf.transpose(self.value_cells, [m, k, n])
+            self.value_cells = tf.reshape(self.value_cells, shape=(m, k * n))
+            A_values = tf.matmul(self.A,self.value_cells)
+            A_values = tf.reshape(A_values,shape=())
 
     def _compute_sequence_lengths(self, embedded_sequneces):
         """
