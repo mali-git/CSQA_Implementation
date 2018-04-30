@@ -39,9 +39,15 @@ WORD_TO_VEC_FLAGS_FOR_C_FORMAT = 'word_to_vec_flags_for_c_format'
 # Additional constants
 EMBEDDED_SEQUENCES = 'embedded_sequences'
 
-# TensorFlow related keys
-NUM_UNITS_HRED_UTTERANCE_CELL = 'num_units_hred_utterance_cell'
-NUM_UNITS_HRED_CONTEXT_CELL = 'num_units_hred_context_cell'
-NUM_UNITS_HRED_DECODER_CELL = 'num_units_hred_decoder_cell'
+# Hierarchical encoder related constants
+NUM_UNITS_HRE_UTTERANCE_CELL = 'num_units_hre_utterance_cell'
+NUM_UNITS_HRE_CONTEXT_CELL = 'num_units_hre_context_cell'
+
+# Key-Value Memory Network related constants
+NUM_HOPS = 'num_hops'
+KEY_CELLS = 'key_cells'
+VALUE_CELLS = 'value_cellss'
+
+
 
 
