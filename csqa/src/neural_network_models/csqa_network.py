@@ -13,7 +13,7 @@ class CSQANetwork(object):
 
     def model_fct(self, features, responses, mode, params):
         """
-        This function defines the neural network is called by tf.Estimator
+        This function defines the neural network called by tf.Estimator
         :param features: Features of instances
         :param responses: Responses to last question in each batch
         :param mode: Defines in which mode function is called (train, eval or test)
@@ -83,9 +83,21 @@ class CSQANetwork(object):
                 name="A")
 
             # output after last iteration over memory adressing/reading
-            o = self._get_response_from_memory(num_hops=num_hops, initial_queries=initial_queries)
+            # Shape: (batch_size, feature_size)
+            output_queries = self._get_response_from_memory(num_hops=num_hops, initial_queries=initial_queries)
 
         # ----------------Decoder----------------
+        with tf.variable_scope('Decoder'):
+            batch_size, _ = tf.shape(output_queries)
+            decoder = tf.nn.rnn_cell.LSTMCell(num_units=params[WORD_VEC_DIM])
+
+            decoder_outputs, state_tuple_decoder = tf.nn.dynamic_rnn(
+                cell=decoder,
+                dtype=tf.float32,
+                initial_state= output_queries,
+                sequence_length=[1 for _ in range(batch_size)],
+                # TODO: Remove last token from responses
+                inputs=responses)
 
     def _get_response_from_memory(self, num_hops, initial_queries):
         """
