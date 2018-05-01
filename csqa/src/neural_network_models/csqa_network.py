@@ -74,21 +74,20 @@ class CSQANetwork(object):
             num_hops = params[NUM_HOPS]
             initial_queries = context_last_hidden_states
 
+            # R_i: Matrix used to get query representation q_i+1
             self.R = [tf.Variable(
                 tf.truncated_normal([feature_size, feature_size],
                                     stddev=0.1)) for R_i in range(num_hops)]
             self.A = tf.Variable(
-                tf.truncated_normal([feature_size, word_vec_dim], stddev=0.1),
+                tf.truncated_normal([feature_size, feature_size], stddev=0.1),
                 name="A")
 
             # output after last iteration over memory adressing/reading
-            o = self._get_response_from_memory(num_hops=num_hops, word_vec_dim=word_vec_dim,
-                                               feature_size=feature_size,
-                                               initial_queries=initial_queries)
+            o = self._get_response_from_memory(num_hops=num_hops, initial_queries=initial_queries)
 
         # ----------------Decoder----------------
 
-    def _get_response_from_memory(self, num_hops, word_vec_dim, feature_size, initial_queries):
+    def _get_response_from_memory(self, num_hops, initial_queries):
         """
 
         :param num_hops:
@@ -97,25 +96,57 @@ class CSQANetwork(object):
         :param initial_queries:
         :return:
         """
-        # R_i: Matrix used to get query representation q_i+1
 
+        # Shape: (batch_size, feature_size)
         queries = initial_queries
-        k,m,n = tf.shape(self.key_cells)
+        shape_qs = tf.shape(queries)
+        # For each batch element the columns represent the keys
+        k, m, n = tf.shape(self.key_cells)
 
         for hop in range(num_hops):
+            log.info("----------Key Adressing----------")
             # shape = [k,m,n] transpose to [m,k,n]
             self.key_cells = tf.transpose(self.key_cells, [m, k, n])
             self.key_cells = tf.reshape(self.key_cells, shape=(m, k * n))
 
-            A_keys = tf.matmul(self.A,self.key_cells)
-            # Multiply element wise and then add along columns: Compute dot product for each element of batch
-            memory_confidence_scores = tf.reduce_sum(queries * A_keys,axis=1)
-            memory_probabilities = tf.nn.softmax(memory_confidence_scores)
+            # Shape: (feature_size, batch_size * memory_size)
+            A_keys = tf.matmul(self.A, self.key_cells)
+            # Reshape to (batch_size, memory_size, feature_size)
+            A_keys = tf.transpose(A_keys)
+            A_keys = tf.reshape(A_keys, shape=(-1, n, m))
 
+            # Reshape to (batch_size, 1, feature_size)
+            queries_reshaped = tf.reshape(queries, shape=(shape_qs[0], 1, shape_qs[1]))
+            # Computed dot product between A_queries and A_keys
+            # Multiply element wise and then add along columns: Compute dot product for each element of batch
+            memory_confidence_scores = tf.reduce_sum(queries_reshaped * A_keys, 2)
+            # Shape: (batch_size, memory_size)
+            memory_probabilities = tf.nn.softmax(memory_confidence_scores)
+            # Expand to (batch_size, memory_size, 1)
+            memory_probabilities = tf.expand_dims(memory_probabilities, axis=-1)
+
+            log.info("----------Value Reading----------")
+            # For each batch element the columns represent the values
             self.value_cells = tf.transpose(self.value_cells, [m, k, n])
             self.value_cells = tf.reshape(self.value_cells, shape=(m, k * n))
-            A_values = tf.matmul(self.A,self.value_cells)
-            A_values = tf.reshape(A_values,shape=())
+            # Shape: (feature_size, batch_size * memory_size)
+            A_values = tf.matmul(self.A, self.value_cells)
+            # Reshape to (batch_size, memory_size, feature_size)
+            A_values = tf.transpose(A_values)
+            A_values = tf.reshape(A_values, shape=(-1, n, m))
+
+            # [batch_size, feature_size]
+            o = tf.reduce_sum(memory_probabilities * A_values, 1)
+
+            # Update queries
+            # Shape: (feature_size, feature_size)
+            R = self.R[hop]
+            # Shape: (feature_size, batch_size)
+            queries = tf.matmul(a=R, b=o, transpose_b=True)
+            # Transpose to (batch_size, feature_size)
+            queries = tf.transpose(queries)
+
+        return queries
 
     def _compute_sequence_lengths(self, embedded_sequneces):
         """
