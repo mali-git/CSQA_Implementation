@@ -113,7 +113,7 @@ class CSQANetwork(object):
 
             # FIXME
             target_weights = None
-            # Normaize loss based on batch_size
+            # Normalize loss based on batch_size
             train_loss = (tf.reduce_sum(cross_entropy * target_weights) / batch_size)
 
         # ----------------Prepare Output----------------
@@ -131,14 +131,16 @@ class CSQANetwork(object):
         # EstimatorSpec object will be returned by this function
         estimator_spec = None
 
-        # Check for prediction mode first, since in prediction there is no train_op
+        # Check for prediction mode first, since in prediction mode there is no 'train_op'
         if mode == tf.estimator.ModeKeys.PREDICT:
             logging.info("In prediction mode")
             estimator_spec = self.get_estimator_spec(mode=mode, predictions_dict=predictions_dict,
                                            classifier_output=classification_output)
 
+            return estimator_spec
+
         # If no learning rate is specified then use the default value in the case specified optimizer
-        #  has a defaul tvalue
+        #  has a default value
         if LEARNING_RATE in params:
             optimizer = self.get_optimizer(optimizer= params[OPTIMIZER], learning_rate= params[LEARNING_RATE])
         else:
