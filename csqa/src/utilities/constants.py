@@ -51,12 +51,15 @@ KEY_CELLS = 'key_cells'
 VALUE_CELLS = 'value_cells'
 
 # Optimizers
+OPTIMIZER = 'optimizer'
 ADADELTA = 'Adadelta'
 ADAGRAD ='Adagrad'
 ADAGRAD_DA = 'AdagradDA'
 ADAM = 'Adam'
 RMS_PROP = 'RMSProp'
 
+# Constants refering to hyperparamters
+LEARNING_RATE = 'learning_rate'
 # Serving keys needed by estimator
 _DEFAULT_SERVING_KEY = "serving_default"
 _CLASSIFY_SERVING_KEY = 'classification'

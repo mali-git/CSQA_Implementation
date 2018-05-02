@@ -5,7 +5,7 @@ from tensorflow.python.estimator.export import export_output
 
 from utilities.constants import EMBEDDED_SEQUENCES, NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, \
     WORD_VEC_DIM, KEY_CELLS, VALUE_CELLS, VOCABUALRY_SIZE, EMBEDDED_RESPONSES, ADADELTA, ADAGRAD, ADAGRAD_DA, ADAM, \
-    RMS_PROP, _DEFAULT_SERVING_KEY, _CLASSIFY_SERVING_KEY, _PREDICT_SERVING_KEY
+    RMS_PROP, _DEFAULT_SERVING_KEY, _CLASSIFY_SERVING_KEY, _PREDICT_SERVING_KEY, LEARNING_RATE, OPTIMIZER
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -113,6 +113,38 @@ class CSQANetwork(object):
             # FIXME
             target_weights = None
             train_loss = (tf.reduce_sum(cross_entropy * target_weights) / batch_size)
+
+        predictions_dict = dict()
+
+        # Needed by Java applications. Model can be called from Java
+        classification_output = export_output.ClassificationOutput(
+            scores=tf.nn.softmax(logits))
+
+        estimator_spec = None
+
+        if mode == tf.estimator.ModeKeys.PREDICT:
+            logging.info("In prediction mode")
+            estimator_spec = self.get_estimator_spec(mode=mode, predictions_dict=predictions_dict,
+                                           classifier_output=classification_output)
+
+        if LEARNING_RATE in params:
+            optimizer = self.get_optimizer(optimizer= params[OPTIMIZER], learning_rate= params[LEARNING_RATE])
+        else:
+            optimizer = self.get_optimizer(optimizer= params[OPTIMIZER])
+
+        train_op = optimizer.minimize(train_loss, global_step=tf.train.get_global_step())
+
+        if mode == tf.estimator.ModeKeys.TRAIN:
+            logging.info("In training mode")
+            estimator_spec = self.get_estimator_spec(mode=mode, predictions_dict=predictions_dict,
+                                           classifier_output=classification_output, loss=train_loss, train_op=train_op)
+
+        if mode == tf.estimator.ModeKeys.EVAL:
+            logging.info("In evaluation mode")
+            estimator_spec = self.get_estimator_spec(mode=mode, predictions_dict=predictions_dict,
+                                           classifier_output=classification_output, loss=train_loss)
+
+        return estimator_spec
 
     def get_estimator_specification(self, mode, predictions_dict, classifier_output, loss=None, train_op=None):
         """
