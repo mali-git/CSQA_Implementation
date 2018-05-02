@@ -116,6 +116,8 @@ class CSQANetwork(object):
             # Normaize loss based on batch_size
             train_loss = (tf.reduce_sum(cross_entropy * target_weights) / batch_size)
 
+        # ----------------Prepare Output----------------
+
         # Dictionary containing the predictions
         predictions_dict = OrderedDict()
         predictions_dict[LOGITS] = logits
