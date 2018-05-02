@@ -38,6 +38,8 @@ WORD_TO_VEC_FLAGS_FOR_C_FORMAT = 'word_to_vec_flags_for_c_format'
 
 # Additional constants
 EMBEDDED_SEQUENCES = 'embedded_sequences'
+EMBEDDED_RESPONSES = 'embedded_responses'
+VOCABUALRY_SIZE = 'vocabulary_size'
 
 # Hierarchical encoder related constants
 NUM_UNITS_HRE_UTTERANCE_CELL = 'num_units_hre_utterance_cell'

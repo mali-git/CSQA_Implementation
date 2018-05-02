@@ -3,7 +3,7 @@ import logging
 import tensorflow as tf
 
 from utilities.constants import EMBEDDED_SEQUENCES, NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, \
-    WORD_VEC_DIM, KEY_CELLS, VALUE_CELLS
+    WORD_VEC_DIM, KEY_CELLS, VALUE_CELLS, VOCABUALRY_SIZE, EMBEDDED_RESPONSES
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -11,11 +11,11 @@ log = logging.getLogger(__name__)
 
 class CSQANetwork(object):
 
-    def model_fct(self, features, responses, mode, params):
+    def model_fct(self, features, targets, mode, params):
         """
         This function defines the neural network called by tf.Estimator
         :param features: Features of instances
-        :param responses: Responses to last question in each batch
+        :param targets: Responses to last question in each batch
         :param mode: Defines in which mode function is called (train, eval or test)
         :param params: Dictionary containing model parameters
         :return:
@@ -24,6 +24,7 @@ class CSQANetwork(object):
         # in batch are related to each other.
         # Shape: (batch_size, max_utter_length, vec_dimension)
         embedded_sequences = features[EMBEDDED_SEQUENCES]
+        embedded_responses = features[EMBEDDED_RESPONSES]
         sequenece_lengths = self._compute_sequence_lengths(embedded_sequences)
         self.key_cells = features[KEY_CELLS]
         self.value_cells = features[VALUE_CELLS]
@@ -89,15 +90,28 @@ class CSQANetwork(object):
         # ----------------Decoder----------------
         with tf.variable_scope('Decoder'):
             batch_size, _ = tf.shape(output_queries)
-            decoder = tf.nn.rnn_cell.LSTMCell(num_units=params[WORD_VEC_DIM])
+            decoder_cell = tf.nn.rnn_cell.LSTMCell(num_units=params[WORD_VEC_DIM])
 
-            decoder_outputs, state_tuple_decoder = tf.nn.dynamic_rnn(
-                cell=decoder,
-                dtype=tf.float32,
-                initial_state= output_queries,
-                sequence_length=[1 for _ in range(batch_size)],
-                # TODO: Remove last token from responses
-                inputs=responses)
+            # Set initial state of the decoder based on the computed output queries
+            helper = tf.contrib.seq2seq.TrainingHelper(
+                inputs=embedded_responses, sequence_length=[], time_major=False)
+
+            projection_layer = tf.layers.dense(
+                units=params[VOCABUALRY_SIZE], use_bias=False)
+
+            decoder = tf.contrib.seq2seq.BasicDecoder(cell=decoder_cell, helper=helper, initial_state=output_queries,
+                                                      output_layer=projection_layer)
+
+            outputs, _ = tf.contrib.seq2seq.dynamic_decode(decoder=decoder)
+            logits = outputs.rnn_output
+
+            cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                labels=targets, logits=logits)
+
+            # FIXME
+            target_weights = None
+            train_loss = (tf.reduce_sum(cross_entropy * target_weights) /
+                          batch_size)
 
     def _get_response_from_memory(self, num_hops, initial_queries):
         """
