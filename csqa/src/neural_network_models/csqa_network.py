@@ -1,10 +1,11 @@
 import logging
 
 import tensorflow as tf
+from tensorflow.python.estimator.export import export_output
 
 from utilities.constants import EMBEDDED_SEQUENCES, NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, \
     WORD_VEC_DIM, KEY_CELLS, VALUE_CELLS, VOCABUALRY_SIZE, EMBEDDED_RESPONSES, ADADELTA, ADAGRAD, ADAGRAD_DA, ADAM, \
-    RMS_PROP
+    RMS_PROP, _DEFAULT_SERVING_KEY, _CLASSIFY_SERVING_KEY, _PREDICT_SERVING_KEY
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -113,8 +114,51 @@ class CSQANetwork(object):
             target_weights = None
             train_loss = (tf.reduce_sum(cross_entropy * target_weights) / batch_size)
 
-    def get_optimizer(self, optimizer, learning_rate=None):
+    def get_estimator_specification(self, mode, predictions_dict, classifier_output, loss=None, train_op=None):
+        """
+        model_fct returns an EstimatorSpec object containing all the information needed for training,eval and pedict
+        :param mode: Defines the mode (train,eval,predict) in which model_fct was called
+        :param predictions_dict:
+        :param classifier_output:
+        :param loss:
+        :param train_op:
+        :rtype: EstimatorSpec
+        """
 
+        estimator_specification = None
+
+        if mode == tf.estimator.ModeKeys.TRAIN:
+            estimator_specification = tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op,
+                                                                 predictions=predictions_dict,
+                                                                 export_outputs={
+                                                                     _DEFAULT_SERVING_KEY: classifier_output,
+                                                                     _CLASSIFY_SERVING_KEY: classifier_output,
+                                                                     _PREDICT_SERVING_KEY: export_output.PredictOutput(
+                                                                         predictions_dict)})
+
+        elif mode == tf.estimator.ModeKeys.EVAL:
+            estimator_specification = tf.estimator.EstimatorSpec(mode, loss=loss, predictions=predictions_dict,
+                                                                 export_outputs={
+                                                                     _DEFAULT_SERVING_KEY: classifier_output,
+                                                                     _CLASSIFY_SERVING_KEY: classifier_output,
+                                                                     _PREDICT_SERVING_KEY: export_output.PredictOutput(
+                                                                         predictions_dict)})
+
+        elif mode == tf.estimator.ModeKeys.PREDICT:
+            estimator_specification = tf.estimator.EstimatorSpec(mode, predictions=predictions_dict, export_outputs={
+                _DEFAULT_SERVING_KEY: classifier_output,
+                _CLASSIFY_SERVING_KEY: classifier_output,
+                _PREDICT_SERVING_KEY: export_output.PredictOutput(predictions_dict)})
+
+        return estimator_specification
+
+    def get_optimizer(self, optimizer, learning_rate=None):
+        """
+
+        :param optimizer:
+        :param learning_rate:
+        :return:
+        """
         if optimizer == ADADELTA:
             if learning_rate != None:
                 return tf.train.AdadeltaOptimizer(learning_rate=learning_rate)
