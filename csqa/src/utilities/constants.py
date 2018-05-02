@@ -40,6 +40,9 @@ WORD_TO_VEC_FLAGS_FOR_C_FORMAT = 'word_to_vec_flags_for_c_format'
 EMBEDDED_SEQUENCES = 'embedded_sequences'
 EMBEDDED_RESPONSES = 'embedded_responses'
 VOCABUALRY_SIZE = 'vocabulary_size'
+LOGITS = 'logits'
+WORD_IDS = 'word_ids'
+WORD_PROBABILITIES = 'word_probabilities'
 
 # Hierarchical encoder related constants
 NUM_UNITS_HRE_UTTERANCE_CELL = 'num_units_hre_utterance_cell'
@@ -60,6 +63,7 @@ RMS_PROP = 'RMSProp'
 
 # Constants refering to hyperparamters
 LEARNING_RATE = 'learning_rate'
+
 # Serving keys needed by estimator
 _DEFAULT_SERVING_KEY = "serving_default"
 _CLASSIFY_SERVING_KEY = 'classification'
