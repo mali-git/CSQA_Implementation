@@ -57,6 +57,10 @@ ADAGRAD_DA = 'AdagradDA'
 ADAM = 'Adam'
 RMS_PROP = 'RMSProp'
 
+# Serving keys needed by estimator
+_DEFAULT_SERVING_KEY = "serving_default"
+_CLASSIFY_SERVING_KEY = 'classification'
+_PREDICT_SERVING_KEY = 'predict'
 
 
 
