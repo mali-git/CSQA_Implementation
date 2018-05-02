@@ -48,7 +48,14 @@ NUM_UNITS_HRE_CONTEXT_CELL = 'num_units_hre_context_cell'
 # Key-Value Memory Network related constants
 NUM_HOPS = 'num_hops'
 KEY_CELLS = 'key_cells'
-VALUE_CELLS = 'value_cellss'
+VALUE_CELLS = 'value_cells'
+
+# Optimizers
+ADADELTA = 'Adadelta'
+ADAGRAD ='Adagrad'
+ADAGRAD_DA = 'AdagradDA'
+ADAM = 'Adam'
+RMS_PROP = 'RMSProp'
 
 
 

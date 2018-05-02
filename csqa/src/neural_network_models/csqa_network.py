@@ -3,7 +3,8 @@ import logging
 import tensorflow as tf
 
 from utilities.constants import EMBEDDED_SEQUENCES, NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, \
-    WORD_VEC_DIM, KEY_CELLS, VALUE_CELLS, VOCABUALRY_SIZE, EMBEDDED_RESPONSES
+    WORD_VEC_DIM, KEY_CELLS, VALUE_CELLS, VOCABUALRY_SIZE, EMBEDDED_RESPONSES, ADADELTA, ADAGRAD, ADAGRAD_DA, ADAM, \
+    RMS_PROP
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -110,8 +111,41 @@ class CSQANetwork(object):
 
             # FIXME
             target_weights = None
-            train_loss = (tf.reduce_sum(cross_entropy * target_weights) /
-                          batch_size)
+            train_loss = (tf.reduce_sum(cross_entropy * target_weights) / batch_size)
+
+    def get_optimizer(self, optimizer, learning_rate=None):
+
+        if optimizer == ADADELTA:
+            if learning_rate != None:
+                return tf.train.AdadeltaOptimizer(learning_rate=learning_rate)
+            else:
+                return tf.train.AdadeltaOptimizer()
+
+        elif optimizer == ADAGRAD:
+
+            return tf.train.AdagradOptimizer(learning_rate=learning_rate)
+
+        elif optimizer == ADAGRAD_DA:
+
+            return tf.train.AdagradDAOptimizer(learning_rate=learning_rate)
+
+        elif optimizer == ADAM:
+
+            if learning_rate != None:
+                return tf.train.AdamOptimizer(learning_rate=learning_rate)
+            else:
+                return tf.train.AdamOptimizer()
+
+        elif optimizer == RMS_PROP:
+            tf.train.RMSPropOptimizer(learning_rate=learning_rate)
+
+        else:
+            raise Exception("Optimizer %s isn't available. Choose one of following %s, %s, %s, %s or %s" % (optimizer,
+                                                                                                            ADADELTA,
+                                                                                                            ADAGRAD,
+                                                                                                            ADAGRAD_DA,
+                                                                                                            ADAM,
+                                                                                                            RMS_PROP))
 
     def _get_response_from_memory(self, num_hops, initial_queries):
         """
