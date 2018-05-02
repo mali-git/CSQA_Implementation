@@ -2,10 +2,11 @@ import logging
 
 import tensorflow as tf
 from tensorflow.python.estimator.export import export_output
-
+from collections import OrderedDict
 from utilities.constants import EMBEDDED_SEQUENCES, NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, \
     WORD_VEC_DIM, KEY_CELLS, VALUE_CELLS, VOCABUALRY_SIZE, EMBEDDED_RESPONSES, ADADELTA, ADAGRAD, ADAGRAD_DA, ADAM, \
-    RMS_PROP, _DEFAULT_SERVING_KEY, _CLASSIFY_SERVING_KEY, _PREDICT_SERVING_KEY, LEARNING_RATE, OPTIMIZER
+    RMS_PROP, _DEFAULT_SERVING_KEY, _CLASSIFY_SERVING_KEY, _PREDICT_SERVING_KEY, LEARNING_RATE, OPTIMIZER, LOGITS, \
+    WORD_PROBABILITIES, WORD_IDS
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -112,21 +113,30 @@ class CSQANetwork(object):
 
             # FIXME
             target_weights = None
+            # Normaize loss based on batch_size
             train_loss = (tf.reduce_sum(cross_entropy * target_weights) / batch_size)
 
-        predictions_dict = dict()
+        # Dictionary containing the predictions
+        predictions_dict = OrderedDict()
+        predictions_dict[LOGITS] = logits
+        predictions_dict[WORD_PROBABILITIES] = tf.nn.softmax(logits)
+        predictions_dict[WORD_IDS] = tf.argmax(logits,axis=1)
 
         # Needed by Java applications. Model can be called from Java
         classification_output = export_output.ClassificationOutput(
             scores=tf.nn.softmax(logits))
 
+        # EstimatorSpec object will be returned by this function
         estimator_spec = None
 
+        # Check for prediction mode first, since in prediction there is no train_op
         if mode == tf.estimator.ModeKeys.PREDICT:
             logging.info("In prediction mode")
             estimator_spec = self.get_estimator_spec(mode=mode, predictions_dict=predictions_dict,
                                            classifier_output=classification_output)
 
+        # If no learning rate is specified then use the default value in the case specified optimizer
+        #  has a defaul tvalue
         if LEARNING_RATE in params:
             optimizer = self.get_optimizer(optimizer= params[OPTIMIZER], learning_rate= params[LEARNING_RATE])
         else:
@@ -143,6 +153,7 @@ class CSQANetwork(object):
             logging.info("In evaluation mode")
             estimator_spec = self.get_estimator_spec(mode=mode, predictions_dict=predictions_dict,
                                            classifier_output=classification_output, loss=train_loss)
+
 
         return estimator_spec
 
