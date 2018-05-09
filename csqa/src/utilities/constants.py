@@ -65,9 +65,13 @@ RMS_PROP = 'RMSProp'
 LEARNING_RATE = 'learning_rate'
 
 # Serving keys needed by estimator
-_DEFAULT_SERVING_KEY = "serving_default"
-_CLASSIFY_SERVING_KEY = 'classification'
-_PREDICT_SERVING_KEY = 'predict'
+DEFAULT_SERVING_KEY = "serving_default"
+CLASSIFY_SERVING_KEY = 'classification'
+PREDICT_SERVING_KEY = 'predict'
 
+# Vocabulary related keys
+TARGET_SOS_ID = 'target_sos_id'
+TARGET_EOS_ID = 'target_eos_id'
+TARGET_VOCAB_SIZE = 'target_vocab_size'
 
 
