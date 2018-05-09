@@ -1,12 +1,13 @@
 import logging
+from collections import OrderedDict
 
 import tensorflow as tf
 from tensorflow.python.estimator.export import export_output
-from collections import OrderedDict
+
 from utilities.constants import EMBEDDED_SEQUENCES, NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, \
-    WORD_VEC_DIM, KEY_CELLS, VALUE_CELLS, VOCABUALRY_SIZE, EMBEDDED_RESPONSES, ADADELTA, ADAGRAD, ADAGRAD_DA, ADAM, \
-    RMS_PROP, _DEFAULT_SERVING_KEY, _CLASSIFY_SERVING_KEY, _PREDICT_SERVING_KEY, LEARNING_RATE, OPTIMIZER, LOGITS, \
-    WORD_PROBABILITIES, WORD_IDS
+    WORD_VEC_DIM, KEY_CELLS, VALUE_CELLS, VOCABUALRY_SIZE, EMBEDDED_RESPONSES, LEARNING_RATE, OPTIMIZER, LOGITS, \
+    WORD_PROBABILITIES, WORD_IDS, TARGET_SOS_ID, TARGET_EOS_ID, MAX_NUM_UTTER_TOKENS
+from utilities.tensorflow_estimator_utils import get_estimator_specification
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class CSQANetwork(object):
         embedded_sequences = features[EMBEDDED_SEQUENCES]
         embedded_responses = features[EMBEDDED_RESPONSES]
         sequenece_lengths = self._compute_sequence_lengths(embedded_sequences)
+        sequenece_lengths_responses = self._compute_sequence_lengths(embedded_responses)
         self.key_cells = features[KEY_CELLS]
         self.value_cells = features[VALUE_CELLS]
 
@@ -91,13 +93,14 @@ class CSQANetwork(object):
             output_queries = self._get_response_from_memory(num_hops=num_hops, initial_queries=initial_queries)
 
         # ----------------Decoder----------------
+        train_loss = None
+
         with tf.variable_scope('Decoder'):
             batch_size, _ = tf.shape(output_queries)
             decoder_cell = tf.nn.rnn_cell.LSTMCell(num_units=params[WORD_VEC_DIM])
 
-            # Set initial state of the decoder based on the computed output queries
-            helper = tf.contrib.seq2seq.TrainingHelper(
-                inputs=embedded_responses, sequence_length=[], time_major=False)
+            helper = self.get_helper(mode, decoder_embedded_input=embedded_responses,
+                                     sequenece_lengths=sequenece_lengths_responses, params=params)
 
             projection_layer = tf.layers.dense(
                 units=params[VOCABUALRY_SIZE], use_bias=False)
@@ -105,16 +108,22 @@ class CSQANetwork(object):
             decoder = tf.contrib.seq2seq.BasicDecoder(cell=decoder_cell, helper=helper, initial_state=output_queries,
                                                       output_layer=projection_layer)
 
-            outputs, _ = tf.contrib.seq2seq.dynamic_decode(decoder=decoder)
+            outputs, final_context_state, final_sequence_lengths = tf.contrib.seq2seq.dynamic_decode(decoder=decoder)
             logits = outputs.rnn_output
+            predicted_word_ids = outputs.sample_id
 
-            cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                labels=targets, logits=logits)
+            if mode != tf.estimator.ModeKeys.PREDICT:
+                # target's shape: [batch_size, max_seq_length] logit's shape: [batch_size, max_seq_length, word_vec_dim]
+                cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                    labels=targets, logits=logits)
 
-            # FIXME
-            target_weights = None
-            # Normalize loss based on batch_size
-            train_loss = (tf.reduce_sum(cross_entropy * target_weights) / batch_size)
+                # Mask padding vectors
+                # target_weights shape: [batch_size, max_seq_len]
+                target_weights = tf.sequence_mask(lengths=sequenece_lengths_responses,
+                                                  maxlen=params[MAX_NUM_UTTER_TOKENS],
+                                                  dtype=logits.dtype)
+                # Normalize loss based on batch_size
+                train_loss = (tf.reduce_sum(cross_entropy * target_weights) / batch_size)
 
         # ----------------Prepare Output----------------
 
@@ -122,121 +131,37 @@ class CSQANetwork(object):
         predictions_dict = OrderedDict()
         predictions_dict[LOGITS] = logits
         predictions_dict[WORD_PROBABILITIES] = tf.nn.softmax(logits)
-        predictions_dict[WORD_IDS] = tf.argmax(logits,axis=1)
+        predictions_dict[WORD_IDS] = predicted_word_ids
 
         # Needed by Java applications. Model can be called from Java
         classification_output = export_output.ClassificationOutput(
             scores=tf.nn.softmax(logits))
 
-        # EstimatorSpec object will be returned by this function
-        estimator_spec = None
-
         # Check for prediction mode first, since in prediction mode there is no 'train_op'
         if mode == tf.estimator.ModeKeys.PREDICT:
             logging.info("In prediction mode")
-            estimator_spec = self.get_estimator_spec(mode=mode, predictions_dict=predictions_dict,
-                                           classifier_output=classification_output)
-
-            return estimator_spec
+            return get_estimator_specification(mode=mode, predictions_dict=predictions_dict,
+                                               classifier_output=classification_output)
 
         # If no learning rate is specified then use the default value in the case specified optimizer
         #  has a default value
         if LEARNING_RATE in params:
-            optimizer = self.get_optimizer(optimizer= params[OPTIMIZER], learning_rate= params[LEARNING_RATE])
+            optimizer = self.get_optimizer(optimizer=params[OPTIMIZER], learning_rate=params[LEARNING_RATE])
         else:
-            optimizer = self.get_optimizer(optimizer= params[OPTIMIZER])
+            optimizer = self.get_optimizer(optimizer=params[OPTIMIZER])
 
         train_op = optimizer.minimize(train_loss, global_step=tf.train.get_global_step())
 
         if mode == tf.estimator.ModeKeys.TRAIN:
             logging.info("In training mode")
-            estimator_spec = self.get_estimator_spec(mode=mode, predictions_dict=predictions_dict,
-                                           classifier_output=classification_output, loss=train_loss, train_op=train_op)
+            return get_estimator_specification(mode=mode, predictions_dict=predictions_dict,
+                                               classifier_output=classification_output, loss=train_loss,
+                                               train_op=train_op)
 
         if mode == tf.estimator.ModeKeys.EVAL:
             logging.info("In evaluation mode")
-            estimator_spec = self.get_estimator_spec(mode=mode, predictions_dict=predictions_dict,
-                                           classifier_output=classification_output, loss=train_loss)
-
-
-        return estimator_spec
-
-    def get_estimator_specification(self, mode, predictions_dict, classifier_output, loss=None, train_op=None):
-        """
-        model_fct returns an EstimatorSpec object containing all the information needed for training,eval and pedict
-        :param mode: Defines the mode (train,eval,predict) in which model_fct was called
-        :param predictions_dict:
-        :param classifier_output:
-        :param loss:
-        :param train_op:
-        :rtype: EstimatorSpec
-        """
-
-        estimator_specification = None
-
-        if mode == tf.estimator.ModeKeys.TRAIN:
-            estimator_specification = tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op,
-                                                                 predictions=predictions_dict,
-                                                                 export_outputs={
-                                                                     _DEFAULT_SERVING_KEY: classifier_output,
-                                                                     _CLASSIFY_SERVING_KEY: classifier_output,
-                                                                     _PREDICT_SERVING_KEY: export_output.PredictOutput(
-                                                                         predictions_dict)})
-
-        elif mode == tf.estimator.ModeKeys.EVAL:
-            estimator_specification = tf.estimator.EstimatorSpec(mode, loss=loss, predictions=predictions_dict,
-                                                                 export_outputs={
-                                                                     _DEFAULT_SERVING_KEY: classifier_output,
-                                                                     _CLASSIFY_SERVING_KEY: classifier_output,
-                                                                     _PREDICT_SERVING_KEY: export_output.PredictOutput(
-                                                                         predictions_dict)})
-
-        elif mode == tf.estimator.ModeKeys.PREDICT:
-            estimator_specification = tf.estimator.EstimatorSpec(mode, predictions=predictions_dict, export_outputs={
-                _DEFAULT_SERVING_KEY: classifier_output,
-                _CLASSIFY_SERVING_KEY: classifier_output,
-                _PREDICT_SERVING_KEY: export_output.PredictOutput(predictions_dict)})
-
-        return estimator_specification
-
-    def get_optimizer(self, optimizer, learning_rate=None):
-        """
-
-        :param optimizer:
-        :param learning_rate:
-        :return:
-        """
-        if optimizer == ADADELTA:
-            if learning_rate != None:
-                return tf.train.AdadeltaOptimizer(learning_rate=learning_rate)
-            else:
-                return tf.train.AdadeltaOptimizer()
-
-        elif optimizer == ADAGRAD:
-
-            return tf.train.AdagradOptimizer(learning_rate=learning_rate)
-
-        elif optimizer == ADAGRAD_DA:
-
-            return tf.train.AdagradDAOptimizer(learning_rate=learning_rate)
-
-        elif optimizer == ADAM:
-
-            if learning_rate != None:
-                return tf.train.AdamOptimizer(learning_rate=learning_rate)
-            else:
-                return tf.train.AdamOptimizer()
-
-        elif optimizer == RMS_PROP:
-            tf.train.RMSPropOptimizer(learning_rate=learning_rate)
-
-        else:
-            raise Exception("Optimizer %s isn't available. Choose one of following %s, %s, %s, %s or %s" % (optimizer,
-                                                                                                            ADADELTA,
-                                                                                                            ADAGRAD,
-                                                                                                            ADAGRAD_DA,
-                                                                                                            ADAM,
-                                                                                                            RMS_PROP))
+            return get_estimator_specification(mode=mode, predictions_dict=predictions_dict,
+                                               classifier_output=classification_output, loss=train_loss)
 
     def _get_response_from_memory(self, num_hops, initial_queries):
         """
@@ -311,3 +236,19 @@ class CSQANetwork(object):
         lengths = tf.reduce_sum(binary_flags, axis=1)
         lengths = tf.cast(lengths, tf.int32)
         return lengths
+
+    def get_helper(self, mode, decoder_embedded_input, sequenece_lengths, params):
+        helper = None
+
+        if mode != tf.estimator.ModeKeys.PREDICT:
+            helper = tf.contrib.seq2seq.TrainingHelper(inputs=decoder_embedded_input,
+                                                       sequence_length=sequenece_lengths,
+                                                       time_major=False)
+        else:
+            batch_size = tf.shape(decoder_embedded_input)[0]
+            start_tokens = tf.fill([batch_size], params[TARGET_SOS_ID])
+            end_token_id = params[TARGET_EOS_ID]
+            helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(
+                decoder_embedded_input, start_tokens, end_token_id)
+
+        return helper
