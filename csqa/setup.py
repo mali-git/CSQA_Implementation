@@ -14,6 +14,8 @@ INSTALL_REQUIRES = [
     'click',
     'gensim==3.4.0',
     'spacy==2.0.11',
+    'torch==0.4.0',
+    'torchvision==0.2.1',
 ]
 
 ENTRY_POINTS = {
