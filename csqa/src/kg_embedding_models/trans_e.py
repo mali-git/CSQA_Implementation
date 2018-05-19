@@ -22,7 +22,7 @@ class TransE(nn.Module):
 
     def calc_score(self, h_emb, r_emb, t_emb):
         # TODO: - torch.abs(h_emb + r_emb - t_emb) or + torch.abs(h_emb + r_emb - t_emb) ??
-        # Ccmpute score and transform result to 1D tensor
+        # Compute score and transform result to 1D tensor
         score = torch.sum(torch.abs(h_emb + r_emb - t_emb), 1)
 
         return score
