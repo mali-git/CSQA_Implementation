@@ -24,9 +24,8 @@ class CSQANetwork(object):
 
     def initialize_embedding_layer(self, embeddings, num_trainable_tokens, word_vec_dim, vocab_size):
         with tf.variable_scope('embedding_layer'):
-
             if embeddings is not None:
-                # Embeddings for unknown token, start of sentence token etc. are be trainable
+                # Embeddings for unknown token, start of sentence token etc. are trainable
                 trainable_embs = self.initial_embeddings[0:num_trainable_tokens]
                 embeddings = self.initial_embeddings[num_trainable_tokens:]
 
@@ -38,7 +37,7 @@ class CSQANetwork(object):
                                                  trainable=True)
 
                 pretrained_embeddings = tf.get_variable(name="pretrained_embeddings",
-                                                        shape=[vocab_size-num_trainable_tokens, word_vec_dim],
+                                                        shape=[vocab_size - num_trainable_tokens, word_vec_dim],
                                                         initializer=initializer,
                                                         trainable=False)
 
