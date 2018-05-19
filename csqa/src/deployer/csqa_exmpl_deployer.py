@@ -17,7 +17,7 @@ from utilities.constants import EMBEDDED_SEQUENCES, EMBEDDED_RESPONSES, NUM_UNIT
 @click.option('-keys_path', help='path to file containing embedded keys', required=True)
 @click.option('-values_path', help='path to file containing embedded values', required=True)
 def main(vocab_path, keys_path, values_path):
-    utter_1 = 'We are builing a new dialogue system'
+    utter_1 = 'We are building a new dialogue system'
     utter_2 = 'What is a dialogue system?'
     keys = ['rel_1_subj_1', 'rel_1_subj_2', 'rel_1_subj_3']
     values = ['obj_1', 'obj_2', 'obj_3']
