@@ -55,7 +55,7 @@ def main(vocab_path, keys_path, values_path):
     log.info('-------BATCH VALUES-------')
     log.info(features['BATCH VALUES'].shape)
 
-    # Define mode parameters
+    # Define model parameters
     model_params = OrderedDict()
     model_params[NUM_UNITS_HRE_UTTERANCE_CELL] = 10
     model_params[NUM_UNITS_HRE_CONTEXT_CELL] = 5
