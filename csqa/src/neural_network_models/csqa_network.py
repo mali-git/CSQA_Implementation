@@ -26,7 +26,6 @@ class CSQANetwork(object):
         with tf.variable_scope('embedding_layer'):
 
             if embeddings is not None:
-                assert self.initial_embeddings is not None
                 # Embeddings for unknown token, start of sentence token etc. are be trainable
                 trainable_embs = self.initial_embeddings[0:num_trainable_tokens]
                 embeddings = self.initial_embeddings[num_trainable_tokens:]
