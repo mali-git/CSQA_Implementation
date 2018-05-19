@@ -1,7 +1,7 @@
 import logging
-import numpy as np
 from collections import OrderedDict
 
+import numpy as np
 import tensorflow as tf
 from tensorflow.python.estimator.export import export_output
 
@@ -15,6 +15,43 @@ log = logging.getLogger(__name__)
 
 
 class CSQANetwork(object):
+
+    def __init__(self, num_trainable_tokens, word_vec_dim, vocab_size, initial_embeddings=None):
+        self.initial_embeddings = initial_embeddings
+        self.embeddings = self.initialize_embedding_layer(embeddings=self.initial_embeddings,
+                                                          num_trainable_tokens=num_trainable_tokens,
+                                                          word_vec_dim=word_vec_dim, vocab_size=vocab_size)
+
+    def initialize_embedding_layer(self, embeddings, num_trainable_tokens, word_vec_dim, vocab_size):
+        with tf.variable_scope('embedding_layer'):
+
+            if embeddings is not None:
+                assert self.initial_embeddings is not None
+                # Embeddings for unknown token, start of sentence token etc. are be trainable
+                trainable_embs = self.initial_embeddings[0:num_trainable_tokens]
+                embeddings = self.initial_embeddings[num_trainable_tokens:]
+
+                initializer = tf.constant_initializer(embeddings)
+
+                trainable_embs = tf.get_variable(name="trainable_embeddings",
+                                                 shape=[num_trainable_tokens, word_vec_dim],
+                                                 initializer=tf.constant_initializer(trainable_embs),
+                                                 trainable=True)
+
+                pretrained_embeddings = tf.get_variable(name="pretrained_embeddings",
+                                                        shape=[vocab_size-num_trainable_tokens, word_vec_dim],
+                                                        initializer=initializer,
+                                                        trainable=False)
+
+                embeddings = tf.concat([trainable_embs, pretrained_embeddings], name='embeddings', axis=0)
+
+            else:
+                embeddings = tf.get_variable(name="embeddings",
+                                             shape=[vocab_size, word_vec_dim],
+                                             initializer=tf.random_normal_initializer(),
+                                             trainable=True)
+
+            return embeddings
 
     def model_fct(self, features, targets, mode, params):
         """
@@ -30,15 +67,18 @@ class CSQANetwork(object):
 
         for feature in features:
             # Shape: (num_utterances, max_utter_length, vec_dimension)
-            embedded_sequences = feature[EMBEDDED_SEQUENCES]
-            embedded_response = feature[EMBEDDED_RESPONSES]
+            embedded_sequences = tf.nn.embedding_lookup(self.embeddings, feature[EMBEDDED_SEQUENCES])
+            embedded_response = tf.nn.embedding_lookup(self.embeddings, feature[EMBEDDED_RESPONSES])
+
+            exit(0)
+
             sequenece_lengths = self._compute_sequence_lengths(embedded_sequences)
             sequenece_lengths_responses = self._compute_sequence_lengths(embedded_response)
             key_cells = features[KEY_CELLS]
             value_cells = features[VALUE_CELLS]
 
             # ----------------Hierarchical Encoder----------------
-            with tf.variable_scope('Utterance Level Encoder'):
+            with tf.variable_scope('utterance_level_encoder'):
                 utterance_level_encoder = tf.nn.rnn_cell.LSTMCell(num_units=params[NUM_UNITS_HRE_UTTERANCE_CELL])
 
                 # state_tuple is a tuple containing the last hidden state and the last activation
@@ -60,7 +100,7 @@ class CSQANetwork(object):
                 utterances_last_hidden_states = tf.reshape(utterances_last_hidden_states, shape=(
                     num_context_utterances, 1, dimension_hidden_utterance_state))
 
-            with tf.variable_scope('Context Level Encoder'):
+            with tf.variable_scope('context_level_encoder'):
                 context_level_encoder = tf.nn.rnn_cell.LSTMCell(num_units=params[NUM_UNITS_HRE_CONTEXT_CELL])
 
                 _, state_tuple_context_level = tf.nn.dynamic_rnn(
@@ -75,12 +115,11 @@ class CSQANetwork(object):
                 lastest_dialogue_representation = state_tuple_context_level[0][-1]
                 dialgoue_representations.append(lastest_dialogue_representation)
 
-
-        #[batch_size, NUM_UNITS_HRED_UTTERANCE_CELL]
-        dialgoue_representations = np.array(dialgoue_representations,dtype=np.float32)
+        # [batch_size, NUM_UNITS_HRED_UTTERANCE_CELL]
+        dialgoue_representations = np.array(dialgoue_representations, dtype=np.float32)
 
         # ----------------Key-Value Memory Network----------------
-        with tf.variable_scope('Key Value Memory Network'):
+        with tf.variable_scope('key_value_memory_network'):
             word_vec_dim = params[WORD_VEC_DIM]
             feature_size = params[NUM_UNITS_HRE_CONTEXT_CELL]
             num_hops = params[NUM_HOPS]
@@ -96,12 +135,13 @@ class CSQANetwork(object):
 
             # output after last iteration over memory adressing/reading
             # Shape: (batch_size, feature_size)
-            memory_output = self._get_response_from_memory(num_hops=num_hops, initial_queries=initial_queries)
+            memory_output = self._get_response_from_memory(num_hops=num_hops, initial_queries=initial_queries,
+                                                           key_cells=key_cells, value_cells=value_cells)
 
         # ----------------Decoder----------------
         train_loss = None
 
-        with tf.variable_scope('Decoder'):
+        with tf.variable_scope('decoder'):
             batch_size, _ = tf.shape(memory_output)
             decoder_cell = tf.nn.rnn_cell.LSTMCell(num_units=params[WORD_VEC_DIM])
 
@@ -114,7 +154,8 @@ class CSQANetwork(object):
             decoder = tf.contrib.seq2seq.BasicDecoder(cell=decoder_cell, helper=helper, initial_state=memory_output,
                                                       output_layer=projection_layer)
 
-            outputs, final_context_state, final_sequence_lengths = tf.contrib.seq2seq.dynamic_decode(decoder=decoder)
+            outputs, final_context_state, final_sequence_lengths = tf.contrib.seq2seq.dynamic_decode(
+                decoder=decoder)
             logits = outputs.rnn_output
             predicted_word_ids = outputs.sample_id
 
@@ -173,9 +214,9 @@ class CSQANetwork(object):
         """
 
         :param num_hops:
-        :param word_vec_dim:
-        :param feature_size:
         :param initial_queries:
+        :param key_cells: Embeddings for keys representing concatenations of relations and subjects
+        :param value_cells: Embeddings for objects
         :return:
         """
 
