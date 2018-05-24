@@ -5,7 +5,8 @@ from utilities.constants import ADADELTA, ADAGRAD, ADAGRAD_DA, ADAM, \
     RMS_PROP, DEFAULT_SERVING_KEY, CLASSIFY_SERVING_KEY, PREDICT_SERVING_KEY
 
 
-def get_estimator_specification(mode, predictions_dict, classifier_output, loss=None, train_op=None):
+def get_estimator_specification(mode, predictions_dict, classifier_output, loss=None, train_op=None,
+                                training_hooks=None, eval_hooks=None, predict_hooks=None):
     """
     model_fct returns an EstimatorSpec object containing all the information needed for training,eval and pedict
     :param mode: Defines the mode (train,eval,predict) in which model_fct was called
@@ -25,23 +26,24 @@ def get_estimator_specification(mode, predictions_dict, classifier_output, loss=
                                                                  DEFAULT_SERVING_KEY: classifier_output,
                                                                  CLASSIFY_SERVING_KEY: classifier_output,
                                                                  PREDICT_SERVING_KEY: export_output.PredictOutput(
-                                                                     predictions_dict)})
-
+                                                                     predictions_dict)},
+                                                             training_hooks=training_hooks)
     elif mode == tf.estimator.ModeKeys.EVAL:
         estimator_specification = tf.estimator.EstimatorSpec(mode, loss=loss, predictions=predictions_dict,
                                                              export_outputs={
                                                                  DEFAULT_SERVING_KEY: classifier_output,
                                                                  CLASSIFY_SERVING_KEY: classifier_output,
                                                                  PREDICT_SERVING_KEY: export_output.PredictOutput(
-                                                                     predictions_dict)})
+                                                                     predictions_dict)}, evaluation_hooks=eval_hooks)
 
     elif mode == tf.estimator.ModeKeys.PREDICT:
         estimator_specification = tf.estimator.EstimatorSpec(mode, predictions=predictions_dict, export_outputs={
             DEFAULT_SERVING_KEY: classifier_output,
             CLASSIFY_SERVING_KEY: classifier_output,
-            PREDICT_SERVING_KEY: export_output.PredictOutput(predictions_dict)})
+            PREDICT_SERVING_KEY: export_output.PredictOutput(predictions_dict)}, prediction_hooks=predict_hooks)
 
     return estimator_specification
+
 
 def get_optimizer(optimizer, learning_rate=None):
     """

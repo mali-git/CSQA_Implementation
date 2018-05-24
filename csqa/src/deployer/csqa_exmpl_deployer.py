@@ -82,8 +82,7 @@ def main(vocab_path, keys_path, values_path, output_direc):
 
     nn.train(input_fn=lambda: input_fct(dialogues=dialogues, responses=np.array([utter_2_ids]),
                                         keys_embedded=keys_embeddings, values_embedded=value_embeddings,
-                                        batch_size=1),
-             steps=100)
+                                        batch_size=1), steps=100)
 
 
 def process_embedding_file(path_to_file):
