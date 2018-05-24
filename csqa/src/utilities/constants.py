@@ -30,15 +30,19 @@ PART_OF_SPEECH_VEC_DIM = 'part_of_speech_vec_dim'
 
 # Needed for configuration
 PATH_TO_INPUT = 'path_to_input'
+PATH_TO_MODEL_DIREC = 'path_to_model_directory'
 PATH_TO_WORD_TO_WEC_MODELS = 'path_to_word_vec_models'
 PATH_TO_ENTITY_MAPPING_FILE = 'path_to_entity_mapping_file'
 MAX_NUM_UTTER_TOKENS = 'max_num_utter_tokens'
 WORD_TO_VEC_FLAGS_FOR_BINARY_FORMAT = 'word_to_vec_flags_for_binary_format'
 WORD_TO_VEC_FLAGS_FOR_C_FORMAT = 'word_to_vec_flags_for_c_format'
+BATCH_SIZE = 'batch_size'
 
 # Additional constants
 EMBEDDED_SEQUENCES = 'embedded_sequences'
 EMBEDDED_RESPONSES = 'embedded_responses'
+DIALOGUES = 'dialogues'
+RESPONSES = 'responses'
 VOCABUALRY_SIZE = 'vocabulary_size'
 LOGITS = 'logits'
 WORD_IDS = 'word_ids'
@@ -73,5 +77,5 @@ PREDICT_SERVING_KEY = 'predict'
 TARGET_SOS_ID = 'target_sos_id'
 TARGET_EOS_ID = 'target_eos_id'
 TARGET_VOCAB_SIZE = 'target_vocab_size'
-
+NUM_TRAINABLE_TOKENS = 'number_of_trainable_tokens'
 
