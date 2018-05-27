@@ -23,7 +23,8 @@ from utilities.constants import NUM_UNITS_HRE_UTTERANCE_CELL, \
 @click.option('-output_direc', help='path to output directory', required=True)
 def main(vocab_path, keys_path, values_path, output_direc):
     utter_1 = 'We are building a new dialogue system'
-    utter_2 = 'What is a dialogue system?'
+    utter_2 = '<s> What is a dialogue system?'
+    utter_2_target = 'What is a dialogue system? </s>'
     keys = ['rel_1_subj_1', 'rel_1_subj_2', 'rel_1_subj_3']
     values = ['obj_1', 'obj_2', 'obj_3']
     num_trainable_tokens = 3
@@ -35,9 +36,13 @@ def main(vocab_path, keys_path, values_path, output_direc):
 
     utter_1_ids = [voc_to_id[word] if word in voc_to_id else voc_to_id['<unk>'] for word in utter_1.split()]
     utter_2_ids = [voc_to_id[word] if word in voc_to_id else voc_to_id['<unk>'] for word in utter_2.split()]
+    utter_2_target_ids = [voc_to_id[word] if word in voc_to_id else voc_to_id['<unk>'] for word in
+                          utter_2_target.split()]
 
     utter_1_ids = add_padding(sequence=utter_1_ids, max_length=max_length, voc_to_id=voc_to_id)
     utter_2_ids = add_padding(sequence=utter_2_ids, max_length=max_length, voc_to_id=voc_to_id)
+    utter_2_target_ids = add_padding(sequence=utter_2_target_ids, max_length=max_length, voc_to_id=voc_to_id)
+
 
     keys_embeddings = np.array([key_embeddings.T], dtype=np.float32)
     value_embeddings = np.array([value_embeddings.T], dtype=np.float32)
@@ -80,7 +85,7 @@ def main(vocab_path, keys_path, values_path, output_direc):
                                 model_dir=output_direc,
                                 config=None)
 
-    nn.train(input_fn=lambda: input_fct(dialogues=dialogues, responses=np.array([utter_2_ids]),
+    nn.train(input_fn=lambda: input_fct(dialogues=dialogues, responses=np.array([utter_2_target_ids]),
                                         keys_embedded=keys_embeddings, values_embedded=value_embeddings,
                                         batch_size=1), steps=100)
 

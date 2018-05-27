@@ -79,11 +79,19 @@ class CSQANetwork(object):
 
             # Shape: (num_utterances, max_utter_length, vec_dimension)
             embedded_dialogue = tf.nn.embedding_lookup(self.embeddings, dialogue)
-            embedded_response = tf.nn.embedding_lookup(self.embeddings, labels[i])
-            embedded_response = tf.expand_dims(input=embedded_response, axis=0)
+            # In training or eval mode the first embedded token represents <s>
+            # In predict mode we will add on the fly the embedding for <s>
+            embedded_decoder_input = embedded_dialogue[-1]
+            embedded_decoder_input = tf.expand_dims(input=embedded_decoder_input, axis=0)
+            # Remove last response since it is saved separately in embedded_decoder_input
+            embedded_dialogue = embedded_dialogue[:-1]
+
+            # In training and eval mode, last embedded token is </s>
+            embedded_target = tf.nn.embedding_lookup(self.embeddings, labels[i])
+            embedded_target = tf.expand_dims(input=embedded_target, axis=0)
 
             sequenece_lengths = self._compute_sequence_lengths(embedded_dialogue)
-            sequenece_lengths_responses = self._compute_sequence_lengths(embedded_response)
+            sequenece_lengths_responses = self._compute_sequence_lengths(embedded_target)
             key_cells = embedded_keys
             value_cells = embedded_values
 
@@ -159,7 +167,7 @@ class CSQANetwork(object):
             decoder_seq_lengths = np.array(np.repeat(a=params[MAX_NUM_UTTER_TOKENS], repeats=params[BATCH_SIZE]),
                                            dtype=np.int32)
 
-            helper = self.get_helper(mode, decoder_embedded_input=embedded_response,
+            helper = self.get_helper(mode, decoder_embedded_input=embedded_decoder_input,
                                      sequenece_lengths=decoder_seq_lengths, params=params)
 
             projection_layer = layers_core.Dense(units=params[VOCABUALRY_SIZE], use_bias=False)
@@ -171,8 +179,13 @@ class CSQANetwork(object):
                                                       initial_state=initial_state_tuple,
                                                       output_layer=projection_layer)
 
-            outputs, final_context_state, final_sequence_lengths = tf.contrib.seq2seq.dynamic_decode(
-                decoder=decoder)
+            if mode == tf.estimator.ModeKeys.PREDICT:
+                # During inference maximum length of response is not known. Therefore, limit response length.
+                outputs, final_context_state, final_sequence_lengths = tf.contrib.seq2seq.dynamic_decode(
+                    decoder=decoder, maximum_iterations=params[MAX_NUM_UTTER_TOKENS]*2)
+            else:
+                outputs, final_context_state, final_sequence_lengths = tf.contrib.seq2seq.dynamic_decode(
+                    decoder=decoder)
 
             logits = outputs.rnn_output
 
