@@ -6,8 +6,8 @@ import numpy as np
 
 from utilities.constants import WORD_VEC_DIM
 from utilities.corpus_preprocessing_utils.text_manipulation_utils import compute_nlp_features
-from utilities.tensor_embeddings_creation_utils.feature_utils import get_feature_specification_dict
-from utilities.tensor_embeddings_creation_utils.utterance_to_tensor_embeddings_creator import Utterance2TensorCreator
+from utilities.instance_creation_utils.feature_utils import get_feature_specification_dict
+from utilities.instance_creation_utils.utterance_to_tensor_embeddings_creator import Utterance2TensorCreator
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -67,8 +67,8 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         span_five = spans[4]
 
         # Case: Substring doesn't represent an entity: ' in February this year'
-        embedded_seq = self.embedding_creator._compute_sequence_embedding(txt=txt, offset_tuple=offset_tuple_five,
-                                                                          is_entity=False, nlp_span=span_five)
+        embedded_seq = self.embedding_creator._determine_token_ids(txt=txt, offset_tuple=offset_tuple_five,
+                                                                   is_entity=False, nlp_span=span_five)
 
         embedded_seq = np.array(embedded_seq)
         num_tokens_in_seq = len(span_five)
@@ -77,8 +77,8 @@ class TestUtterance2TensorCreator(unittest.TestCase):
 
         # Case: Substring represents an entity: 'chancellor of Germany'
         # For an entity a KG embedding is returned, and not three word embeddings
-        embedded_seq = self.embedding_creator._compute_sequence_embedding(txt=txt, offset_tuple=offset_tuple_two,
-                                                                          is_entity=True, nlp_span=span_two)
+        embedded_seq = self.embedding_creator._determine_token_ids(txt=txt, offset_tuple=offset_tuple_two,
+                                                                   is_entity=True, nlp_span=span_two)
 
         embedded_seq = np.array(embedded_seq)
 
@@ -154,8 +154,8 @@ class TestUtterance2TensorCreator(unittest.TestCase):
             # [ [token-k_model-1 embedding],...,[token-k_model-n embedding] ]  ]
 
             nlp_span = spans[counter]
-            embedded_seq = self.embedding_creator._compute_sequence_embedding(txt=txt, offset_tuple=offset_tuple,
-                                                                              is_entity=is_entity, nlp_span=nlp_span)
+            embedded_seq = self.embedding_creator._determine_token_ids(txt=txt, offset_tuple=offset_tuple,
+                                                                       is_entity=is_entity, nlp_span=nlp_span)
             embedded_seqs += embedded_seq
             counter += 1
 
