@@ -142,7 +142,8 @@ class Utterance2TensorCreator(object):
                                                                 utterance_two_dict=answer_dict)
             training_instance_dicts.append(training_instance_dict)
 
-        return training_instance_dict
+
+        return training_instance_dicts
 
     def create_instances_for_prediction(self, dialogue, file_id):
         """
@@ -219,6 +220,8 @@ class Utterance2TensorCreator(object):
             embedded_seq = self._compute_sequence_embedding(txt=utterance, offset_tuple=offset_tuple,
                                                             is_entity=is_entity, nlp_span=nlp_span)
             embedded_seqs += embedded_seq
+
+            counter +=1
 
         padded_seqs = self._add_padding_to_embedding(seq_embedding=embedded_seqs)
         tensor_embedding = self._create_tensor(embedded_sequence=padded_seqs)
