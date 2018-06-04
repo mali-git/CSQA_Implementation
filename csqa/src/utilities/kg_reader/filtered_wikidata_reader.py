@@ -44,7 +44,7 @@ class FilteredWikiDataReader(KGReader):
         """
 
         if is_mulit_processing_mode == False and num_processes != None:
-            raise Exception("When defining 'num_processes' than 'is_mulit_processing_mode' must be set to 'True'")
+            raise Exception("When defining 'num_processes' then 'is_mulit_processing_mode' must be set to 'True'")
 
         keys = list(kg.keys())
 
