@@ -7,8 +7,8 @@ from utilities.constants import PATH_TO_INPUT, MAX_NUM_UTTER_TOKENS, WORD_VEC_DI
     PATH_TO_WORD_TO_WEC_MODELS, WORD_TO_VEC_FLAGS_FOR_BINARY_FORMAT, WORD_TO_VEC_FLAGS_FOR_C_FORMAT
 from utilities.corpus_preprocessing_utils.load_dialogues import retrieve_dialogues
 from utilities.deployer_utils import get_parameters_from_configuration_file
-from utilities.tensor_embeddings_creation_utils.feature_utils import get_feature_specification_dict
-from utilities.tensor_embeddings_creation_utils.utterance_to_tensor_embeddings_creator import Utterance2TensorCreator
+from utilities.instance_creation_utils.feature_utils import get_feature_specification_dict
+from utilities.instance_creation_utils.utterance_to_tensor_embeddings_creator import Utterance2TensorCreator
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -54,9 +54,6 @@ def main(conf):
 
     training_instance_dicts = [instance_creator.create_training_instances(dialogue=dialogue, file_id=key) for
                                key, dialogue in dialogues_data_dict.items()]
-
-    for training_dict in training_instance_dicts:
-        print(training_dict)
 
 
 if __name__ == '__main__':

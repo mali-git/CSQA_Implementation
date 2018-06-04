@@ -12,8 +12,9 @@ log = logging.getLogger(__name__)
 
 from neural_network_models.csqa_network import CSQANetwork
 from utilities.constants import NUM_UNITS_HRE_UTTERANCE_CELL, \
-    NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, WORD_VEC_DIM, VOCABUALRY_SIZE, LEARNING_RATE, OPTIMIZER, ADAM, \
-    MAX_NUM_UTTER_TOKENS, BATCH_SIZE, NUM_TRAINABLE_TOKENS, RESPONSES
+    NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, WORD_VEC_DIM, ENCODER_VOCABUALRY_SIZE, LEARNING_RATE, OPTIMIZER, ADAM, \
+    MAX_NUM_UTTER_TOKENS, BATCH_SIZE, ENCODER_NUM_TRAINABLE_TOKENS, RESPONSES, DECODER_VOCABUALRY_SIZE, \
+    DECODER_NUM_TRAINABLE_TOKENS
 
 
 @click.command()
@@ -64,11 +65,13 @@ def main(vocab_path, keys_path, values_path, output_direc):
     model_params[NUM_UNITS_HRE_CONTEXT_CELL] = 5
     model_params[NUM_HOPS] = 2
     model_params[WORD_VEC_DIM] = 2
-    model_params[VOCABUALRY_SIZE] = 17
+    model_params[ENCODER_VOCABUALRY_SIZE] = 17
+    model_params[DECODER_VOCABUALRY_SIZE] = 17
     model_params[LEARNING_RATE] = 0.001
     model_params[OPTIMIZER] = ADAM
     model_params[MAX_NUM_UTTER_TOKENS] = max_length
-    model_params[NUM_TRAINABLE_TOKENS] = num_trainable_tokens
+    model_params[ENCODER_NUM_TRAINABLE_TOKENS] = num_trainable_tokens
+    model_params[DECODER_NUM_TRAINABLE_TOKENS] = num_trainable_tokens
     model_params[BATCH_SIZE] = 1
 
     currentTime = time.strftime("%H:%M:%S")
@@ -77,7 +80,7 @@ def main(vocab_path, keys_path, values_path, output_direc):
     os.makedirs(output_direc)
 
     # TODO: Adapt stategy for passing arguments
-    model = CSQANetwork(initial_embeddings=voc_embeddings)
+    model = CSQANetwork(initial_encoder_embeddings=voc_embeddings, initial_decoder_embeddings=voc_embeddings)
 
     # configuration = tf.contrib.learn.RunConfig(save_checkpoints_secs=3000, gpu_memory_fraction=0.9
 
