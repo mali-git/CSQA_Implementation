@@ -7,6 +7,7 @@ import spacy
 
 from utilities.constants import CSQA_UTTERANCE
 from utilities.corpus_preprocessing_utils.load_dialogues import retrieve_dialogues
+from utilities.general_utils import split_list_in_chunks
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -52,8 +53,7 @@ def create_vocab(chunck_dialogues):
     return context_word_freqs, respose_word_freqs
 
 
-def split_list_in_chunks(input_list, num_chunks, num_processes=multiprocessing.cpu_count()):
-    return [input_list[i::num_chunks] for i in range(num_chunks)]
+
 
 def create_csqa_vocabs(input_direc):
     """
