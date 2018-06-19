@@ -1,4 +1,5 @@
 import logging
+import pickle
 from collections import OrderedDict
 
 import numpy as np
@@ -17,9 +18,8 @@ log = logging.getLogger(__name__)
 
 class DialogueInstanceCreator(object):
 
-    def __init__(self, max_num_utter_tokens, max_dialogue_context_length, feature_specifications,
-                 path_to_entity_id_to_label_mapping, ctx_vocab_freq_dict, response_vocab_freq_dict, ctx_vocab_size,
-                 response_vocab_size,
+    def __init__(self, max_num_utter_tokens, max_dialogue_context_length,
+                 path_to_entity_id_to_label_mapping, ctx_vocab_freq_dict, response_vocab_freq_dict,
                  word_to_vec_dict, path_to_kb_embeddings):
 
         self.word_to_vec_model = self._load_word_to_vec_model(word_to_vec_dict=word_to_vec_dict)
@@ -44,25 +44,43 @@ class DialogueInstanceCreator(object):
 
         self._initialize_token_mappings(vocab_freqs=response_vocab_freq_dict, is_ctx_vocab=False)
 
-    def _add_kg_embeddings_to_vocab(self, token_to_embeddings, word_to_id_dict):
+    def _load_kg_embeddings(self, path_to_kb_embeddings):
+        """
+        Load dict containing the entity id's as keys and the embeddings as values
+        :param path_to_kb_embeddings: Path to the serialized dict
+        :rtype: dict
+        """
+        with open(path_to_kb_embeddings, 'rb') as f:
+            entity_to_embeddings_dict = pickle.load(f)
+            return entity_to_embeddings_dict
+
+    def _add_kg_embeddings_to_vocab(self, token_to_embeddings, token_to_id_dict):
+        """
+        Add the entity id's and their embeddings to the passed dict
+        :param token_to_embeddings:
+        :param token_to_id_dict:
+        :rtype: dict, dict
+        """
         # Add KG embeddings
-        token_to_embeddings = token_to_embeddings.update(self.kg_embeddings_dict)
-        counter = len(word_to_id_dict)
+        # no assignment nedded for 'token_to_embeddings' since update() returns None
+        token_to_embeddings.update(self.kg_embeddings_dict)
+        counter = len(token_to_id_dict)
 
         for i, token in enumerate(token_to_embeddings.keys()):
-            word_to_id_dict[token] = counter + i
+            token_to_id_dict[token] = counter + i
             counter += 1
 
-        return token_to_embeddings, word_to_id_dict
+        return token_to_embeddings, token_to_id_dict
 
     def _initialize_token_mappings(self, vocab_freqs, is_ctx_vocab):
         """
-
-        :param vocab_freqs:
-        :return:
+        Extract tokens from vocab_freqs, and the embeddings from the word2Vec model, and create corresponding mappings
+        :param vocab_freqs: Dict containing tokens as keys and their frequencies in the corpus as values
+        :param is_ctx_vocab: Flag indication whether the vocabulary is extracted from context utterances
+        :rtype: dict, dict
         """
         token_to_embeddings = OrderedDict()
-        word_to_id_dict = OrderedDict()
+        token_to_id_dict = OrderedDict()
         vec_dim = self.word_to_vec_model.vector_size
         token_to_embeddings[SOS_TOKEN] = np.random.uniform(low=-0.1, high=0.1, size=(vec_dim,))
         token_to_embeddings[EOS_TOKEN] = np.random.uniform(low=-0.1, high=0.1, size=(vec_dim,))
@@ -75,18 +93,20 @@ class DialogueInstanceCreator(object):
 
         counter = 0
 
-        for word, freq in vocab_freqs.items():
+        # TODO: Improove
+        for word, _ in vocab_freqs.items():
             if word not in token_to_embeddings:
                 if word in self.word_to_vec_model:
                     token_to_embeddings[word] = self.word_to_vec_model[word]
-                    word_to_id_dict[word] = counter
+                    token_to_id_dict[word] = counter
                     counter += 1
 
         if is_ctx_vocab:
-            token_to_embeddings, word_to_id_dict = self._add_kg_embeddings_to_vocab(token_to_embeddings,
-                                                                                    word_to_id_dict)
+            token_to_embeddings, token_to_id_dict = self._add_kg_embeddings_to_vocab(
+                token_to_embeddings=token_to_embeddings,
+                token_to_id_dict=token_to_id_dict)
 
-        return token_to_embeddings, word_to_id_dict
+        return token_to_embeddings, token_to_id_dict
 
     def _load_entity_to_label_mapping(self, path_to_entity_id_to_label_mapping):
 
@@ -198,7 +218,6 @@ class DialogueInstanceCreator(object):
             return [word_to_id[token.lower_] if token.lower_ in word_to_id else word_to_id[UNKNOWN_TOKEN] for token in
                     nlp_span]
 
-
     def _get_token_id_for_entity(self, entity_id, is_reponse_utter):
 
         id = None
@@ -226,7 +245,6 @@ class DialogueInstanceCreator(object):
 
         for utter_dict in context:
             utter_token_ids = self._apply_instance_creation_steps(utterance_dict=utter_dict, is_reponse_utter=False)
-
 
     def add_utter_padding(self, utter_tok_ids, is_reponse_utter):
         num_tokens = len(utter_tok_ids)
