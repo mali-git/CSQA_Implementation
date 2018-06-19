@@ -43,7 +43,7 @@ class TestDialogueInstanceCreator(unittest.TestCase):
         token_to_embeddings, word_to_id_dict = self.instance_creator._initialize_token_mappings(
             vocab_freqs=self.ctx_vocab_freq_dict, is_ctx_vocab=True)
 
-        self.assertEqual(type(token_to_embeddings),OrderedDict)
+        self.assertEqual(type(token_to_embeddings), OrderedDict)
         assert (len(token_to_embeddings) == 10)
         assert (len(word_to_id_dict) == 10)
 
