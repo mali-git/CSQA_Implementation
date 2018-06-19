@@ -53,8 +53,6 @@ def create_vocab(chunck_dialogues):
     return context_word_freqs, respose_word_freqs
 
 
-
-
 def create_csqa_vocabs(input_direc):
     """
     Create vocabulary for CSQA dataset. Contains word ad their frequency in the dataset
