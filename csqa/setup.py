@@ -10,7 +10,7 @@ PACKAGES = setuptools.find_packages(where='src')
 META_PATH = os.path.join('src', 'deployer_utils', '__init__.py')
 INSTALL_REQUIRES = [
     'numpy==1.14.2',
-    'tensorflow==1.6.0',
+    'tensorflow-gpu==1.6.0',
     'click',
     'gensim==3.4.0',
     'spacy==2.0.11',
