@@ -82,7 +82,15 @@ ENCODER_NUM_TRAINABLE_TOKENS = 'encoder_number_of_trainable_tokens'
 DECODER_NUM_TRAINABLE_TOKENS = 'decoder_number_of_trainable_tokens'
 SOS_TOKEN = '<s>'
 EOS_TOKEN = '</s>'
-UNKNOWN_TOKEN = '<unkn>'
+UNKNOWN_TOKEN = '<unk>'
 KG_WORD = '<kg_word>'
 PADDING_TOKEN = '<padding>'
+
+# Configuration related
+UTILITIES_PATH = 'utilities'
+READER = 'reader'
+WROC_READER = 'WROCReader'
+TRANS_E = 'TransE'
+TRANS_H = 'TransH'
+CLASS_NAME = 'class_name'
 
