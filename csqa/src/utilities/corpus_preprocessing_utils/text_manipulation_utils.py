@@ -1,9 +1,9 @@
-import logging
-
 import bisect
+import logging
+from collections import OrderedDict
+
 import numpy as np
 import spacy
-from collections import OrderedDict
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -36,7 +36,6 @@ def save_insertion_of_offsets(start_offsets, end_offsets, new_start, new_end):
     """
     start_offsets = np.array(start_offsets, dtype=int)
     end_offsets = np.array(end_offsets, dtype=int)
-    indices = np.ones(shape=len(start_offsets))
 
     # Case 1: New entity is contained in existing entity. ['Chancellor of Germany'] Insertion Request: 'Germany'
     case_one_overlappings = (np.all([(start_offsets <= new_start), (end_offsets >= new_start)], axis=0) * 1).nonzero()
