@@ -34,6 +34,7 @@ class DialogueInstanceCreator(object):
         self.ctx_token_to_embeddings, self.ctx_word_to_id = self._initialize_token_mappings(
             vocab_freqs=ctx_vocab_freq_dict, is_ctx_vocab=True)
 
+
         # Note: Flag is important
         self.response_token_to_embeddings, self.response_word_to_id = self._initialize_token_mappings(
             vocab_freqs=response_vocab_freq_dict, is_ctx_vocab=False)
@@ -54,7 +55,7 @@ class DialogueInstanceCreator(object):
             entity_to_embeddings_dict = pickle.load(f)
             return entity_to_embeddings_dict
 
-    def _add_kg_embeddings_to_vocab(self, token_to_embeddings, token_to_id_dict):
+    def _add_kg_embeddings_to_vocab(self, token_to_embeddings):
         """
         Add the entity id's and their embeddings to the passed dict
         :param token_to_embeddings:
@@ -64,13 +65,8 @@ class DialogueInstanceCreator(object):
         # Add KG embeddings
         # no assignment nedded for 'token_to_embeddings' since update() returns None
         token_to_embeddings.update(self.kg_embeddings_dict)
-        counter = len(token_to_id_dict)
 
-        for i, token in enumerate(token_to_embeddings.keys()):
-            token_to_id_dict[token] = counter + i
-            counter += 1
-
-        return token_to_embeddings, token_to_id_dict
+        return token_to_embeddings
 
     def _initialize_token_mappings(self, vocab_freqs, is_ctx_vocab):
         """
@@ -80,32 +76,29 @@ class DialogueInstanceCreator(object):
         :rtype: dict, dict
         """
         token_to_embeddings = OrderedDict()
-        token_to_id_dict = OrderedDict()
         vec_dim = self.word_to_vec_model.vector_size
         token_to_embeddings[SOS_TOKEN] = np.random.uniform(low=-0.1, high=0.1, size=(vec_dim,))
         token_to_embeddings[EOS_TOKEN] = np.random.uniform(low=-0.1, high=0.1, size=(vec_dim,))
         token_to_embeddings[UNKNOWN_TOKEN] = np.random.uniform(low=-0.1, high=0.1, size=(vec_dim,))
+        token_to_embeddings[PADDING_TOKEN] = np.zeros(shape=(vec_dim,))
 
         if is_ctx_vocab == False:
             token_to_embeddings[KG_WORD] = np.random.uniform(low=-0.1, high=0.1, size=(vec_dim,))
-
-        token_to_embeddings[PADDING_TOKEN] = np.zeros(shape=(vec_dim,))
-
-        counter = 0
 
         # TODO: Improove
         for word, _ in vocab_freqs.items():
             if word not in token_to_embeddings:
                 if word in self.word_to_vec_model:
                     token_to_embeddings[word] = self.word_to_vec_model[word]
-                    token_to_id_dict[word] = counter
-                    counter += 1
 
         if is_ctx_vocab:
-            token_to_embeddings, token_to_id_dict = self._add_kg_embeddings_to_vocab(
-                token_to_embeddings=token_to_embeddings,
-                token_to_id_dict=token_to_id_dict)
+            # KG entities are added only in context vocabulary
+            # In response vocabulary the special token KG_WORD is used for entities
+            token_to_embeddings = self._add_kg_embeddings_to_vocab(
+                token_to_embeddings=token_to_embeddings)
 
+        token_to_id_dict = {token: id for id, token in enumerate(token_to_embeddings.keys())}
+        print(token_to_id_dict)
         return token_to_embeddings, token_to_id_dict
 
     def _load_entity_to_label_mapping(self, path_to_entity_id_to_label_mapping):
@@ -179,15 +172,19 @@ class DialogueInstanceCreator(object):
         :param is_reponse_utter:
         :return:
         """
+
         utterance = utterance_dict[CSQA_UTTERANCE]
         counter = 0
 
+        token_ids = []
         for offset_tuple, is_entity in utterance_offsets_info_dict.items():
             nlp_span = nlp_spans[counter]
-            token_ids = self._determine_token_ids(txt=utterance, offset_tuple=offset_tuple, is_entity=is_entity,
+            token_ids += self._determine_token_ids(txt=utterance, offset_tuple=offset_tuple, is_entity=is_entity,
                                                   nlp_span=nlp_span, is_reponse_utter=is_reponse_utter)
 
             counter += 1
+
+        return token_ids
 
     def _apply_instance_creation_steps(self, utterance_dict, is_reponse_utter):
         utterance_txt = utterance_dict[CSQA_UTTERANCE]
@@ -230,7 +227,9 @@ class DialogueInstanceCreator(object):
             entity = txt[start:end]
             entity_id = self.label_to_id_dict[entity]
 
-            return [self._get_token_id_for_entity(self, entity_id, is_reponse_utter)]
+            print("ID: ", self._get_token_id_for_entity(entity_id, is_reponse_utter))
+
+            return [self._get_token_id_for_entity(entity_id, is_reponse_utter)]
 
         else:
             return [word_to_id[token.lower_] if token.lower_ in word_to_id else word_to_id[UNKNOWN_TOKEN] for token in
@@ -243,10 +242,11 @@ class DialogueInstanceCreator(object):
         if is_reponse_utter:
             id = self.response_word_to_id[KG_WORD]
         else:
+            print("In _get: ", self.ctx_word_to_id)
             if entity_id in self.ctx_word_to_id:
-                id = [self.ctx_word_to_id[entity_id]]
+                id = self.ctx_word_to_id[entity_id]
             else:
-                id = [self.ctx_word_to_id[UNKNOWN_TOKEN]]
+                id = self.ctx_word_to_id[UNKNOWN_TOKEN]
 
         return id
 
