@@ -44,7 +44,7 @@ def load_data_from_json_file(input_path):
     """
     Laod all dialogues contained in JSON file.
     :param input_path: Path to JSON file
-    :return:
+    :rtype: dict
     """
     log.debug("Load data from %s " % (input_path))
     with open(input_path, 'r', encoding='utf-8') as fp:
