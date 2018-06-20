@@ -4,10 +4,11 @@ from collections import OrderedDict
 
 import numpy as np
 
+
 from utilities.constants import WORD_VEC_DIM
 from utilities.corpus_preprocessing_utils.text_manipulation_utils import compute_nlp_features
 from utilities.instance_creation_utils.feature_utils import get_feature_specification_dict
-from utilities.instance_creation_utils.utterance_to_tensor_embeddings_creator import Utterance2TensorCreator
+from utilities.instance_creation_utils.utterance_to_tensor_embeddings_creator_deprecated import Utterance2TensorCreator
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -199,16 +200,15 @@ class TestUtterance2TensorCreator(unittest.TestCase):
         third_token_embeddings = embedded_tensor[2]
         fourth_token_embeddings = embedded_tensor[3]
 
-        first_token_embedding_expexted = np.zeros(shape=(word_vec_dim,num_word_to_vec_models))
-        second_token_embedding_expexted = np.array([[1, 1.5], [1, 1.5,], [1, 1.5]])
-        third_token_embedding_expexted = np.array([[2, 2.5], [2, 2.5,], [2, 2.5]])
-        fourth_token_embedding_expexted = np.zeros(shape=(word_vec_dim,num_word_to_vec_models))
+        first_token_embedding_expexted = np.zeros(shape=(word_vec_dim, num_word_to_vec_models))
+        second_token_embedding_expexted = np.array([[1, 1.5], [1, 1.5, ], [1, 1.5]])
+        third_token_embedding_expexted = np.array([[2, 2.5], [2, 2.5, ], [2, 2.5]])
+        fourth_token_embedding_expexted = np.zeros(shape=(word_vec_dim, num_word_to_vec_models))
 
-        self.assertTrue(np.array_equal(first_token_embeddings,first_token_embedding_expexted))
+        self.assertTrue(np.array_equal(first_token_embeddings, first_token_embedding_expexted))
         self.assertTrue(np.array_equal(second_token_embeddings, second_token_embedding_expexted))
         self.assertTrue(np.array_equal(third_token_embeddings, third_token_embedding_expexted))
         self.assertTrue(np.array_equal(fourth_token_embeddings, fourth_token_embedding_expexted))
-
 
         # Case: Use one wor2Vec model
         # Initialize 'Utterance2TensorCreator'

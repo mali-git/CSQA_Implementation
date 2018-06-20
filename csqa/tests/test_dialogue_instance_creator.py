@@ -2,6 +2,7 @@ import logging
 import unittest
 from collections import OrderedDict
 
+from utilities.constants import CSQA_ENTITIES_IN_UTTERANCE, CSQA_UTTERANCE
 from utilities.general_utils import load_dict_from_disk
 from utilities.instance_creation_utils.dialogue_instance_creator import DialogueInstanceCreator
 from utilities.test_utils.create_test_resources import create_test_dialogue_instance_creator
@@ -44,10 +45,10 @@ class TestDialogueInstanceCreator(unittest.TestCase):
             vocab_freqs=self.ctx_vocab_freq_dict, is_ctx_vocab=True)
 
         self.assertEqual(type(token_to_embeddings), OrderedDict)
-        assert (len(token_to_embeddings) == 10)
-        assert (len(word_to_id_dict) == 10)
+        assert (len(token_to_embeddings) == 12)
+        assert (len(word_to_id_dict) == 12)
 
-        expected_words = 'ronaldo final june soccer goal'.split() + ['messi']
+        expected_words = 'cristiano ronaldo final june soccer goal'.split() + ['lionel messi']
 
         for w in expected_words:
             self.assertTrue(w in token_to_embeddings)
@@ -55,10 +56,30 @@ class TestDialogueInstanceCreator(unittest.TestCase):
         token_to_embeddings, word_to_id_dict = self.instance_creator._initialize_token_mappings(
             vocab_freqs=self.response_vocab_freq_dict, is_ctx_vocab=True)
 
-        assert (len(token_to_embeddings) == 10)
-        assert (len(word_to_id_dict) == 10)
+        assert (len(token_to_embeddings) == 12)
+        assert (len(word_to_id_dict) == 12)
 
-        expected_words = 'messi argentine aguero striker draw'.split() + ['ronaldo']
+        expected_words = 'lionel messi argentine aguero striker draw'.split() + ['cristiano ronaldo']
 
         for w in expected_words:
             self.assertTrue(w in token_to_embeddings)
+
+    def test_get_offsets_of_relevant_entities_in_utterance(self):
+        utterance_txt = 'cristiano ronaldo final june soccer goal'
+        utterance_dict = OrderedDict()
+        utterance_dict[CSQA_UTTERANCE] = utterance_txt
+        utterance_dict[CSQA_ENTITIES_IN_UTTERANCE] = ['Q11571', 'Q615']
+        start_offsets, end_offsets = self.instance_creator._get_offsets_of_relevant_entities_in_utterance(
+            utterance_dict=utterance_dict)
+
+        self.assertEqual(len(start_offsets),1)
+        self.assertEqual(len(end_offsets), 1)
+
+        start_offset = start_offsets[0]
+        end_offset = end_offsets[0]
+
+        self.assertEqual(start_offset,0)
+        self.assertEqual(end_offset,17)
+
+    def test__map_utter_toks_to_ids(self):
+        pass
