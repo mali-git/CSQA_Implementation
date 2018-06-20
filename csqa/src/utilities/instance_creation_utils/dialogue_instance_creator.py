@@ -109,10 +109,20 @@ class DialogueInstanceCreator(object):
         return token_to_embeddings, token_to_id_dict
 
     def _load_entity_to_label_mapping(self, path_to_entity_id_to_label_mapping):
+        """
+        Load dict containing entity id's as keys and the corresponding labels as values
+        :param path_to_entity_id_to_label_mapping:
+        :rtype: dict
+        """
 
         return load_data_from_json_file(path_to_entity_id_to_label_mapping)
 
     def _load_word_to_vec_model(self, word_to_vec_dict):
+        """
+        Load pretrained word2Vec model
+        :param word_to_vec_dict:
+        :return:
+        """
         path = word_to_vec_dict['Path']
         is_c_format = word_to_vec_dict['is_c_format']
         is_binary = word_to_vec_dict['is_binary']
@@ -128,7 +138,7 @@ class DialogueInstanceCreator(object):
         """
         Returns sorted (increasing) offsets of utterance-parts based on mentioned entities
         :param utterance_dict: Dictionary containing all information about passed utterance
-        :rtype: dict
+        :rtype: list, list
         """
         start_offsets, end_offsets = [], []
 
@@ -161,6 +171,14 @@ class DialogueInstanceCreator(object):
         return start_offsets, end_offsets
 
     def _map_utter_toks_to_ids(self, utterance_dict, utterance_offsets_info_dict, nlp_spans, is_reponse_utter):
+        """
+
+        :param utterance_dict:
+        :param utterance_offsets_info_dict:
+        :param nlp_spans:
+        :param is_reponse_utter:
+        :return:
+        """
         utterance = utterance_dict[CSQA_UTTERANCE]
         counter = 0
 
