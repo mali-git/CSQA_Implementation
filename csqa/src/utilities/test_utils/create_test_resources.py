@@ -42,8 +42,8 @@ def create_test_dialogue_instance_creator():
 
     out = '../test_resources/entity_to_embeddings.pkl'
     entity_to_embeddings = dict()
-    entity_to_embeddings['cristiano ronaldo'] = np.ones(shape=(100,))
-    entity_to_embeddings['lionel messi'] = np.ones(shape=(100,)) + 1.
+    entity_to_embeddings['Q11571'] = np.ones(shape=(100,))
+    entity_to_embeddings['Q615'] = np.ones(shape=(100,)) + 1.
 
     with open(out, 'wb') as handle:
         pickle.dump(entity_to_embeddings, handle, protocol=pickle.HIGHEST_PROTOCOL)
