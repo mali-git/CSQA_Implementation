@@ -34,7 +34,6 @@ class DialogueInstanceCreator(object):
         self.ctx_token_to_embeddings, self.ctx_word_to_id = self._initialize_token_mappings(
             vocab_freqs=ctx_vocab_freq_dict, is_ctx_vocab=True)
 
-
         # Note: Flag is important
         self.response_token_to_embeddings, self.response_word_to_id = self._initialize_token_mappings(
             vocab_freqs=response_vocab_freq_dict, is_ctx_vocab=False)
@@ -98,7 +97,7 @@ class DialogueInstanceCreator(object):
                 token_to_embeddings=token_to_embeddings)
 
         token_to_id_dict = {token: id for id, token in enumerate(token_to_embeddings.keys())}
-        print(token_to_id_dict)
+
         return token_to_embeddings, token_to_id_dict
 
     def _load_entity_to_label_mapping(self, path_to_entity_id_to_label_mapping):
@@ -180,7 +179,7 @@ class DialogueInstanceCreator(object):
         for offset_tuple, is_entity in utterance_offsets_info_dict.items():
             nlp_span = nlp_spans[counter]
             token_ids += self._determine_token_ids(txt=utterance, offset_tuple=offset_tuple, is_entity=is_entity,
-                                                  nlp_span=nlp_span, is_reponse_utter=is_reponse_utter)
+                                                   nlp_span=nlp_span, is_reponse_utter=is_reponse_utter)
 
             counter += 1
 
@@ -227,8 +226,6 @@ class DialogueInstanceCreator(object):
             entity = txt[start:end]
             entity_id = self.label_to_id_dict[entity]
 
-            print("ID: ", self._get_token_id_for_entity(entity_id, is_reponse_utter))
-
             return [self._get_token_id_for_entity(entity_id, is_reponse_utter)]
 
         else:
@@ -242,7 +239,7 @@ class DialogueInstanceCreator(object):
         if is_reponse_utter:
             id = self.response_word_to_id[KG_WORD]
         else:
-            print("In _get: ", self.ctx_word_to_id)
+
             if entity_id in self.ctx_word_to_id:
                 id = self.ctx_word_to_id[entity_id]
             else:
