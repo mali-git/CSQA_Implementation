@@ -44,7 +44,6 @@ def main(vocab_path, keys_path, values_path, output_direc):
     utter_2_ids = add_padding(sequence=utter_2_ids, max_length=max_length, voc_to_id=voc_to_id)
     utter_2_target_ids = add_padding(sequence=utter_2_target_ids, max_length=max_length, voc_to_id=voc_to_id)
 
-
     keys_embeddings = np.array([key_embeddings.T], dtype=np.float32)
     value_embeddings = np.array([value_embeddings.T], dtype=np.float32)
 
