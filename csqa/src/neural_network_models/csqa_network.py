@@ -8,7 +8,7 @@ from tensorflow.python.layers import core as layers_core
 
 from utilities.constants import NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, \
     WORD_VEC_DIM, ENCODER_VOCABUALRY_SIZE, LEARNING_RATE, OPTIMIZER, LOGITS, \
-    WORD_PROBABILITIES, WORD_IDS, TARGET_SOS_ID, TARGET_EOS_ID, MAX_NUM_UTTER_TOKENS, BATCH_SIZE, \
+    WORD_PROBABILITIES, TOKEN_IDS, TARGET_SOS_ID, TARGET_EOS_ID, MAX_NUM_UTTER_TOKENS, BATCH_SIZE, \
     ENCODER_NUM_TRAINABLE_TOKENS, \
     DIALOGUES, DECODER_NUM_TRAINABLE_TOKENS, DECODER_VOCABUALRY_SIZE
 from utilities.tensorflow_estimator_utils import get_estimator_specification, get_optimizer
@@ -257,7 +257,7 @@ class CSQANetwork(object):
         predictions_dict = OrderedDict()
         predictions_dict[LOGITS] = logits
         predictions_dict[WORD_PROBABILITIES] = tf.nn.softmax(logits)
-        predictions_dict[WORD_IDS] = predicted_word_ids
+        predictions_dict[TOKEN_IDS] = predicted_word_ids
 
         # Needed by Java applications. Model can be called from Java
         classification_output = export_output.ClassificationOutput(
