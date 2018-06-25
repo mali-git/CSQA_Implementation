@@ -7,7 +7,7 @@ import spacy
 from gensim.models import KeyedVectors
 
 from utilities.constants import CSQA_UTTERANCE, CSQA_ENTITIES_IN_UTTERANCE, UNKNOWN_TOKEN, SOS_TOKEN, EOS_TOKEN, \
-    KG_WORD, PADDING_TOKEN
+    KG_WORD, PADDING_TOKEN, TOKEN_IDS, INSTANCE_ID
 from utilities.corpus_preprocessing_utils.load_dialogues import load_data_from_json_file
 from utilities.corpus_preprocessing_utils.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text, \
     compute_nlp_features
@@ -19,13 +19,26 @@ log = logging.getLogger(__name__)
 class DialogueInstanceCreator(object):
 
     def __init__(self, max_num_utter_tokens, max_dialogue_context_length,
-                 path_to_entity_id_to_label_mapping, ctx_vocab_freq_dict, response_vocab_freq_dict,
-                 word_to_vec_dict, path_to_kb_embeddings):
+                 path_to_entity_id_to_label_mapping, path_to_property_id_to_label_mapping, ctx_vocab_freq_dict,
+                 response_vocab_freq_dict, word_to_vec_dict, path_to_kb_entities_embeddings,
+                 path_to_wikidata_triples, min_count_n_gram_matching=1000):
 
         self.word_to_vec_model = self._load_word_to_vec_model(word_to_vec_dict=word_to_vec_dict)
-        self.kg_embeddings_dict = self._load_kg_embeddings(path_to_kb_embeddings=path_to_kb_embeddings)
-        self.entity_id_to_label_dict = self._load_entity_to_label_mapping(path_to_entity_id_to_label_mapping)
-        self.label_to_id_dict = {v: k for k, v in self.entity_id_to_label_dict.items()}
+        self.kg_entities_embeddings_dict = self._load_kg_embeddings(
+            path_to_kb_embeddings=path_to_kb_entities_embeddings)
+
+        self.wiki_data_triples = np.loadtxt(fname=path_to_wikidata_triples, dtype=str,
+                                            comments='@Comment@ Subject Predicate Object')
+
+        self.entity_id_to_label_dict = load_data_from_json_file(path_to_entity_id_to_label_mapping)
+        self.entity_label_to_id_dict = {v: k for k, v in self.entity_id_to_label_dict.items()}
+        self.predicate_id_to_label_dict = load_data_from_json_file(path_to_property_id_to_label_mapping)
+        self.predicate_label_to_id_dict = {v: k for k, v in self.predicate_id_to_label_dict.items()}
+
+        self.modified_items, self.modified_items_id = self._build_modified_wikidata_items_dict()
+
+        self.min_count_n_gram_matching = min_count_n_gram_matching
+        self.ctx_vocab_freq_dict = ctx_vocab_freq_dict
         self.max_num_utter_tokens = max_num_utter_tokens
         # Context of length is defined by a user utterance followed by a system utterance
         self.max_dialogue_context_length = max_dialogue_context_length
@@ -46,13 +59,13 @@ class DialogueInstanceCreator(object):
 
     def _load_kg_embeddings(self, path_to_kb_embeddings):
         """
-        Load dict containing the entity id's as keys and the embeddings as values
+        Load dict containing the KG item id's as keys and the embeddings as values
         :param path_to_kb_embeddings: Path to the serialized dict
         :rtype: dict
         """
         with open(path_to_kb_embeddings, 'rb') as f:
-            entity_to_embeddings_dict = pickle.load(f)
-            return entity_to_embeddings_dict
+            kg_items_to_embeddings_dict = pickle.load(f)
+            return kg_items_to_embeddings_dict
 
     def _add_kg_embeddings_to_vocab(self, token_to_embeddings):
         """
@@ -63,7 +76,7 @@ class DialogueInstanceCreator(object):
         """
         # Add KG embeddings
         # no assignment nedded for 'token_to_embeddings' since update() returns None
-        token_to_embeddings.update(self.kg_embeddings_dict)
+        token_to_embeddings.update(self.kg_entities_embeddings_dict)
 
         return token_to_embeddings
 
@@ -164,12 +177,12 @@ class DialogueInstanceCreator(object):
 
     def _map_utter_toks_to_ids(self, utterance_dict, utterance_offsets_info_dict, nlp_spans, is_reponse_utter):
         """
-
-        :param utterance_dict:
-        :param utterance_offsets_info_dict:
-        :param nlp_spans:
-        :param is_reponse_utter:
-        :return:
+        Return for tokens and KG entities of an utterance their corresponding id's
+        :param utterance_dict: Dictionary containing all information about passed utterance
+        :param utterance_offsets_info_dict: Dict: Keys are tuples (start,end) and values are boolean flags (is_entity)
+        :param nlp_spans: Contains each token NLP features
+        :param is_reponse_utter: Flag
+        :rtype: list
         """
 
         utterance = utterance_dict[CSQA_UTTERANCE]
@@ -213,6 +226,15 @@ class DialogueInstanceCreator(object):
 
     def _determine_token_ids(self, txt, offset_tuple,
                              is_entity, nlp_span, is_reponse_utter):
+        """
+
+        :param txt: Utterance
+        :param offset_tuple: Tuple indicating start and end of part
+        :param is_entity: Flag indicating whether part is corresponding to an entity
+        :param nlp_span: NLP features of part
+        :param is_reponse_utter: Flag indicating wheter utterance is a response
+        :rtype: list
+        """
 
         if is_reponse_utter:
             word_to_id = self.response_word_to_id
@@ -224,7 +246,7 @@ class DialogueInstanceCreator(object):
             end = offset_tuple[1]
             # Entity don't transform to lowercase
             entity = txt[start:end]
-            entity_id = self.label_to_id_dict[entity]
+            entity_id = self.entity_label_to_id_dict[entity]
 
             return [self._get_token_id_for_entity(entity_id, is_reponse_utter)]
 
@@ -233,8 +255,12 @@ class DialogueInstanceCreator(object):
                     nlp_span]
 
     def _get_token_id_for_entity(self, entity_id, is_reponse_utter):
-
-        id = None
+        """
+        Retruns token id (not KG id) for entity
+        :param entity_id: KG id of entity
+        :param is_reponse_utter: Flag indicating wheter utterance is a response
+        :rtype: int
+        """
 
         if is_reponse_utter:
             id = self.response_word_to_id[KG_WORD]
@@ -249,6 +275,8 @@ class DialogueInstanceCreator(object):
 
     def create_training_instances(self, dialogue, file_id):
 
+        instances_of_dialogue = []
+
         # Set state
         self.current_file_in_progress = file_id
 
@@ -258,10 +286,43 @@ class DialogueInstanceCreator(object):
         context = dialogue[:-1]
         response = dialogue[-1]
 
+        counter = 0
+
         for utter_dict in context:
             utter_token_ids = self._apply_instance_creation_steps(utterance_dict=utter_dict, is_reponse_utter=False)
+            instance_id = file_id + '_' + str(counter)
+            new_inst = self._create_single_instance(utter_dict=utter_dict, utter_token_ids=utter_token_ids,
+                                                    instance_id=instance_id)
+            instances_of_dialogue.append(new_inst)
+            counter += 1
+
+        utter_token_ids = self._apply_instance_creation_steps(utterance_dict=response, is_reponse_utter=True)
+        instance_id = file_id + '_' + str(counter)
+        new_inst = self._create_single_instance(utter_dict=response, utter_token_ids=utter_token_ids,
+                                                instance_id=instance_id)
+        instances_of_dialogue.append(new_inst)
+
+        # Extract relevant KG triples
+        relevant_kg_triples = self._extract_relevant_kg_triples(utter_dict=context[-1])
+
+        return instances_of_dialogue, relevant_kg_triples
+
+    def _create_single_instance(self, utter_dict, utter_token_ids, instance_id):
+        new_inst = OrderedDict()
+        new_inst[INSTANCE_ID] = instance_id
+        new_inst[CSQA_UTTERANCE] = utter_dict[CSQA_UTTERANCE]
+        new_inst[TOKEN_IDS] = utter_token_ids
+        new_inst[CSQA_ENTITIES_IN_UTTERANCE] = utter_dict[CSQA_ENTITIES_IN_UTTERANCE]
+
+        return new_inst
 
     def add_utter_padding(self, utter_tok_ids, is_reponse_utter):
+        """
+        Add padding to the right side to id list
+        :param utter_tok_ids: List of token ids
+        :param is_reponse_utter: Flag indicating whether part is corresponding to an entity
+        :rtype: list
+        """
         num_tokens = len(utter_tok_ids)
         right_padding_size = (self.max_num_utter_tokens - num_tokens)
         if is_reponse_utter:
@@ -270,3 +331,53 @@ class DialogueInstanceCreator(object):
             padding = [self.ctx_word_to_id[PADDING_TOKEN] for i in range(right_padding_size)]
 
         return utter_tok_ids + padding
+
+    def _build_modified_wikidata_items_dict(self):
+        kg_items = list(self.entity_id_to_label_dict.values()) + list(self.predicate_id_to_label_dict.values())
+        kg_ids = list(self.entity_id_to_label_dict.keys()) + list(self.predicate_id_to_label_dict.keys())
+
+        items = []
+        item_ids = []
+
+        for i, value in enumerate(kg_items):
+            id = kg_ids[i]
+            parts = value.split()
+            items += parts
+            item_ids += [id for i in range(len(parts))]
+
+        items = np.array(items, dtype=np.str)
+        item_ids = np.array(item_ids, dtype=np.str)
+
+        return items, item_ids
+
+    def _extract_relevant_kg_triples(self, utter_dict):
+        """
+        Extract for utter relevant triples from KG based on n-gram matching
+        :param utter_dict: Dictionary containing all information about passed utterance
+        :rtype: np.array
+        """
+
+        utter_txt = utter_dict[CSQA_UTTERANCE]
+        doc = self.nlp_parser(u'%s' % (utter_txt))
+        tokens = [tok.lower_ for tok in doc]
+        relevant_toks = [tok for tok in tokens if tok in self.ctx_vocab_freq_dict and self.ctx_vocab_freq_dict[
+            tok] <= self.min_count_n_gram_matching]
+        relevant_toks = np.array(relevant_toks, dtype=np.str)
+        relevant_items_indices = np.nonzero((np.isin(self.modified_items, relevant_toks) * 1.0))
+
+        relevant_ids = np.unique(self.modified_items_id[relevant_items_indices])
+
+        subject_ids = self.wiki_data_triples[:, 0:1]
+        predicate_ids = self.wiki_data_triples[:, 1:2]
+        object_ids = self.wiki_data_triples[:, 2:3]
+
+        relevant_subj_indices = np.nonzero((np.isin(subject_ids, relevant_ids) * 1.0))
+        relevant_pred_indices = np.nonzero((np.isin(predicate_ids, relevant_ids) * 1.0))
+        relevant_obj_indices = np.nonzero((np.isin(object_ids, relevant_ids) * 1.0))
+
+        relevant_triples_indices = np.unique(
+            np.concatenate([relevant_subj_indices, relevant_pred_indices, relevant_obj_indices], axis=-1))
+
+        relevant_triples = self.wiki_data_triples[relevant_triples_indices]
+
+        return relevant_triples
