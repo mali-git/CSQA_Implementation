@@ -4,14 +4,14 @@ import numpy as np
 import json
 from gensim.models import Word2Vec
 
-def create_test_dialogue_instance_creator():
+def create_test_resources_dialogue_instance_creator():
     csqa_vocab_context_frq = OrderedDict()
-    csqa_vocab_context_frq['cristiano'] = 1
-    csqa_vocab_context_frq['ronaldo'] = 1
-    csqa_vocab_context_frq['final'] = 1
-    csqa_vocab_context_frq['june'] = 1
+    csqa_vocab_context_frq['cristiano'] = 3
+    csqa_vocab_context_frq['ronaldo'] = 3
+    csqa_vocab_context_frq['final'] = 10
+    csqa_vocab_context_frq['june'] = 10
     csqa_vocab_context_frq['soccer'] = 1
-    csqa_vocab_context_frq['goal'] = 1
+    csqa_vocab_context_frq['goal'] = 10
 
     out = '../test_resources/csqa_vocab_context_vocab_5.pkl'
 
@@ -55,3 +55,6 @@ def create_test_dialogue_instance_creator():
 
     with open(out, 'w') as outfile:
         json.dump(entity_mapping, outfile)
+
+
+
