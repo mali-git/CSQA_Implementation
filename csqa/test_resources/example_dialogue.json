@@ -1,0 +1,22 @@
+[
+  {
+    "entities_in_utterance": ["Q11571"],
+    "speaker": "USER",
+    "utterance": "cristiano ronaldo final june soccer goal"
+  },
+  {
+    "entities_in_utterance": ["Q11571"],
+    "speaker": "SYSTEM",
+    "utterance": "cristiano ronaldo final june soccer goal"
+  },
+  {
+    "entities_in_utterance": ["Q11571"],
+    "speaker": "USER",
+    "utterance": "cristiano ronaldo final june soccer goal"
+  },
+  {
+    "entities_in_utterance": ["Q615"],
+    "speaker": "SYSTEM",
+    "utterance": "lionel messi argentine aguero striker draw"
+  }
+]
