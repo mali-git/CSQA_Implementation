@@ -1,8 +1,13 @@
+import logging
+
 import tensorflow as tf
 from tensorflow.python.estimator.export import export_output
 
 from utilities.constants import ADADELTA, ADAGRAD, ADAGRAD_DA, ADAM, \
-    RMS_PROP, DEFAULT_SERVING_KEY, CLASSIFY_SERVING_KEY, PREDICT_SERVING_KEY
+    RMS_PROP, DEFAULT_SERVING_KEY, CLASSIFY_SERVING_KEY, PREDICT_SERVING_KEY, KFAC_FISCHER
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger(__name__)
 
 
 def get_estimator_specification(mode, predictions_dict, classifier_output, loss=None, train_op=None,
@@ -75,6 +80,9 @@ def get_optimizer(optimizer, learning_rate=None):
 
     elif optimizer == RMS_PROP:
         tf.train.RMSPropOptimizer(learning_rate=learning_rate)
+    elif optimizer == KFAC_FISCHER:
+        log.warning("Use of tf.contrib.kfac.estimator.FisherEstimator not tested")
+        return tf.contrib.kfac.estimator.FisherEstimator()
 
     else:
         raise Exception("Optimizer %s isn't available. Choose one of following %s, %s, %s, %s or %s" % (optimizer,
@@ -82,4 +90,5 @@ def get_optimizer(optimizer, learning_rate=None):
                                                                                                         ADAGRAD,
                                                                                                         ADAGRAD_DA,
                                                                                                         ADAM,
-                                                                                                        RMS_PROP))
+                                                                                                        RMS_PROP,
+                                                                                                        KFAC_FISCHER))
