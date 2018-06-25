@@ -46,7 +46,7 @@ RESPONSES = 'responses'
 ENCODER_VOCABUALRY_SIZE = 'encoder_vocabulary_size'
 DECODER_VOCABUALRY_SIZE = 'decoder_vocabulary_size'
 LOGITS = 'logits'
-WORD_IDS = 'word_ids'
+TOKEN_IDS = 'token_ids'
 WORD_PROBABILITIES = 'word_probabilities'
 
 # Hierarchical encoder related constants
@@ -65,6 +65,7 @@ ADAGRAD ='Adagrad'
 ADAGRAD_DA = 'AdagradDA'
 ADAM = 'Adam'
 RMS_PROP = 'RMSProp'
+KFAC_FISCHER = 'kfac_fisher'
 
 # Constants refering to hyperparamters
 LEARNING_RATE = 'learning_rate'
