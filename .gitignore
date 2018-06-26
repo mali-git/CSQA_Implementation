@@ -104,3 +104,4 @@ ENV/
 .idea/*
 /csqa/src/try_and_error/
 /csqa/data/
+/csqa/test_resources/test_out/

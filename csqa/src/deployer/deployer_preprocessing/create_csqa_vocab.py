@@ -5,8 +5,12 @@ import click
 import sys
 import os
 
+# TODO: Remove since it is a hack
+parts = os.getcwd().split('kg_embeddings_dialogue_system')
+path = os.path.join(parts[0],'kg_embeddings_dialogue_system','csqa','src')
+
 w_dir = os.path.dirname(os.getcwd())
-sys.path.append(w_dir)
+sys.path.append(path)
 
 from utilities.corpus_preprocessing_utils.vocab_creation_utils import create_csqa_vocabs
 from utilities.general_utils import create_sorted_dict
