@@ -1,8 +1,12 @@
 import operator
 import pickle
 from collections import Counter
-
 import click
+import sys
+import os
+
+w_dir = os.path.dirname(os.getcwd())
+sys.path.append(w_dir)
 
 from utilities.corpus_preprocessing_utils.vocab_creation_utils import create_csqa_vocabs
 from utilities.general_utils import create_sorted_dict
