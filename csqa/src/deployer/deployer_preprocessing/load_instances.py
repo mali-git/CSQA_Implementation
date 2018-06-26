@@ -52,7 +52,7 @@ def main(conf):
                                                word_to_vec_dict=word_to_vec_model_dict,
                                                path_to_kb_embeddings=None)
 
-    training_instance_dicts = [instance_creator.create_training_instances(dialogue=dialogue, file_id=key) for
+    training_instance_dicts = [instance_creator._create_instances(dialogue=dialogue, file_id=key) for
                                key, dialogue in dialogues_data_dict.items()]
 
 
