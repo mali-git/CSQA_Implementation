@@ -2,7 +2,7 @@ import logging
 import unittest
 from collections import OrderedDict
 
-from utilities.constants import CSQA_ENTITIES_IN_UTTERANCE, CSQA_UTTERANCE
+from utilities.constants import CSQA_ENTITIES_IN_UTTERANCE, CSQA_UTTERANCE, TOKEN_IDS, SOS_TOKEN, EOS_TOKEN
 from utilities.corpus_preprocessing_utils.load_dialogues import load_data_from_json_file
 from utilities.corpus_preprocessing_utils.text_manipulation_utils import compute_nlp_features
 from utilities.general_utils import load_dict_from_disk
@@ -183,11 +183,13 @@ class TestDialogueInstanceCreator(unittest.TestCase):
         file_id = 'example_dialogue.json'
         dialogue = load_data_from_json_file(input_path=input_path)
 
-        instances_of_dialogue, relevant_kg_triples = self.instance_creator.create_training_instances(dialogue=dialogue,
-                                                                                                     file_id=file_id)
+        instances_of_dialogue, target_inst, relevant_kg_triples = self.instance_creator._create_instances(
+            dialogue=dialogue,
+            file_id=file_id,
+            is_training_mode=True)
 
-        self.assertEqual(len(instances_of_dialogue),4)
-        self.assertEqual(len(relevant_kg_triples),4)
+        self.assertEqual(len(instances_of_dialogue), 4)
+        self.assertEqual(len(relevant_kg_triples), 4)
 
         expected_utter = 'cristiano ronaldo final june soccer goal'
 
@@ -202,11 +204,25 @@ class TestDialogueInstanceCreator(unittest.TestCase):
         # Next case
         self.instance_creator.max_dialogue_context_length = 1
 
-        instances_of_dialogue, relevant_kg_triples = self.instance_creator.create_training_instances(dialogue=dialogue,
-                                                                                                     file_id=file_id)
+        instances_of_dialogue, target_inst, relevant_kg_triples = self.instance_creator._create_instances(
+            dialogue=dialogue,
+            file_id=file_id,
+            is_training_mode=True)
 
         self.assertEqual(len(instances_of_dialogue), 2)
         self.assertEqual(len(relevant_kg_triples), 4)
+
+        decoder_out_tok_ids = target_inst[TOKEN_IDS]
+        decoder_in_tok_ids = instances_of_dialogue[-1][TOKEN_IDS]
+
+        sos_tok_id = self.instance_creator.response_word_to_id[SOS_TOKEN]
+        eos_tok_id = self.instance_creator.response_word_to_id[EOS_TOKEN]
+
+        self.assertEqual(decoder_in_tok_ids[0], sos_tok_id)
+        self.assertEqual(decoder_out_tok_ids[-1], eos_tok_id)
+
+        for i in range(1, len(decoder_in_tok_ids) - 1):
+            self.assertEqual(decoder_in_tok_ids[i], decoder_out_tok_ids[i - 1])
 
         expected_utter = 'cristiano ronaldo final june soccer goal'
         utter_txt = instances_of_dialogue[0][CSQA_UTTERANCE]
@@ -215,4 +231,3 @@ class TestDialogueInstanceCreator(unittest.TestCase):
         expected_utter = 'lionel messi argentine aguero striker draw'
         utter_txt = instances_of_dialogue[1][CSQA_UTTERANCE]
         self.assertEqual(utter_txt, expected_utter)
-
