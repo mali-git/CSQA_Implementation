@@ -274,6 +274,16 @@ class DialogueInstanceCreator(object):
         return id
 
     def create_training_instances(self, dialogue, file_id):
+        instances_of_dialogue, target, relevant_kg_triples = self._create_instances(self, dialogue, file_id,
+                                                                            is_training_mode=True)
+        return instances_of_dialogue, target, relevant_kg_triples
+
+    def create_inference_instances(self, dialogue, file_id):
+        instances_of_dialogue, _, relevant_kg_triples = self._create_instances(self, dialogue, file_id,
+                                                                            is_training_mode=False)
+        return instances_of_dialogue, relevant_kg_triples
+
+    def _create_instances(self, dialogue, file_id, is_training_mode):
 
         instances_of_dialogue = []
 
@@ -298,14 +308,23 @@ class DialogueInstanceCreator(object):
 
         utter_token_ids = self._apply_instance_creation_steps(utterance_dict=response, is_reponse_utter=True)
         instance_id = file_id + '_' + str(counter)
-        new_inst = self._create_single_instance(utter_dict=response, utter_token_ids=utter_token_ids,
-                                                instance_id=instance_id)
-        instances_of_dialogue.append(new_inst)
+
+        if is_training_mode:
+            target_input, target_output = self._create_target_instance(utter_dict=response,
+                                                                       utter_token_ids=utter_token_ids,
+                                                                       instance_id=instance_id)
+            instances_of_dialogue.append(target_input)
+            target = target_output
+        else:
+            new_inst = self._create_single_instance(utter_dict=response, utter_token_ids=utter_token_ids,
+                                                    instance_id=instance_id)
+            instances_of_dialogue.append(new_inst)
+            target = None
 
         # Extract relevant KG triples
         relevant_kg_triples = self._extract_relevant_kg_triples(utter_dict=context[-1])
 
-        return instances_of_dialogue, relevant_kg_triples
+        return instances_of_dialogue, target, relevant_kg_triples
 
     def _create_single_instance(self, utter_dict, utter_token_ids, instance_id):
         new_inst = OrderedDict()
@@ -315,6 +334,27 @@ class DialogueInstanceCreator(object):
         new_inst[CSQA_ENTITIES_IN_UTTERANCE] = utter_dict[CSQA_ENTITIES_IN_UTTERANCE]
 
         return new_inst
+
+    def _create_target_instance(self, utter_dict, utter_token_ids, instance_id):
+        # Remove last token: Make sure that it is a <padding> token
+        utter_token_ids = utter_token_ids[:-1]
+        # Add <sos> token at the beginning
+        target_in_tok_ids = [self.response_word_to_id[SOS_TOKEN]] + utter_token_ids
+        target_out_tok_ids = utter_token_ids + [self.response_word_to_id[EOS_TOKEN]]
+
+        target_input_inst = OrderedDict()
+        target_input_inst[INSTANCE_ID] = instance_id
+        target_input_inst[CSQA_UTTERANCE] = utter_dict[CSQA_UTTERANCE]
+        target_input_inst[TOKEN_IDS] = target_in_tok_ids
+        target_input_inst[CSQA_ENTITIES_IN_UTTERANCE] = utter_dict[CSQA_ENTITIES_IN_UTTERANCE]
+
+        target_output_inst = OrderedDict()
+        target_output_inst[INSTANCE_ID] = instance_id
+        target_output_inst[CSQA_UTTERANCE] = utter_dict[CSQA_UTTERANCE]
+        target_output_inst[TOKEN_IDS] = target_out_tok_ids
+        target_output_inst[CSQA_ENTITIES_IN_UTTERANCE] = utter_dict[CSQA_ENTITIES_IN_UTTERANCE]
+
+        return target_input_inst, target_output_inst
 
     def add_utter_padding(self, utter_tok_ids, is_reponse_utter):
         """
