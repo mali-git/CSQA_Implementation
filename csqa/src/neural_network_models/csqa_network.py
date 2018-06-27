@@ -10,7 +10,7 @@ from utilities.constants import NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONT
     WORD_VEC_DIM, ENCODER_VOCABUALRY_SIZE, LEARNING_RATE, OPTIMIZER, LOGITS, \
     WORD_PROBABILITIES, TOKEN_IDS, TARGET_SOS_ID, TARGET_EOS_ID, MAX_NUM_UTTER_TOKENS, BATCH_SIZE, \
     ENCODER_NUM_TRAINABLE_TOKENS, \
-    DIALOGUES, DECODER_NUM_TRAINABLE_TOKENS, DECODER_VOCABUALRY_SIZE
+    DIALOGUES, DECODER_NUM_TRAINABLE_TOKENS, DECODER_VOCABUALRY_SIZE, RESPONSES, RELEVANT_KG_TRIPLES, INSTANCE_ID
 from utilities.tensorflow_estimator_utils import get_estimator_specification, get_optimizer
 
 logging.basicConfig(level=logging.INFO)
@@ -19,36 +19,55 @@ log = logging.getLogger(__name__)
 
 class CSQANetwork(object):
 
-    def __init__(self, initial_encoder_embeddings=None, initial_decoder_embeddings=None):
+    def __init__(self, kg_entity_embeddings, kg_relations_embeddings, initial_encoder_embeddings=None,
+                 initial_decoder_embeddings=None):
         self.initial_encoder_embeddings = initial_encoder_embeddings
         self.initial_decoder_embeddings = initial_decoder_embeddings
         self.encoder_embeddings = None
         self.decoder_embeddings = None
+        self.kg_entity_embeddings = kg_entity_embeddings
+        self.kg_relations_embeddings = kg_relations_embeddings
 
-    def initialize_embedding_layer(self, encoder_embeddings, enocoder_num_trainable_tokens, encoder_vocab_size,
-                                   decoder_embeddings, decoder_num_trainable_tokens, decoder_vocab_size, word_vec_dim):
+    def initialize_kg_embeddings(self, var_name, item_embeddings, item_vec_dim):
+        initializer = tf.constant_initializer(item_embeddings)
+        embeddings = tf.get_variable(name=var_name,
+                                     shape=[len(item_embeddings), item_vec_dim],
+                                     initializer=initializer, trainable=False)
+        return embeddings
+
+    def _initialize_word_embeddings(self, var_one_name, var_two_name, num_trainable_tokens, word_vec_dim,
+                                    initial_encoder_embeddings,
+                                    vocab_size):
+        trainable_embeddings = initial_encoder_embeddings[0:num_trainable_tokens]
+        initializer = tf.constant_initializer(trainable_embeddings)
+        trainable_embeddings = tf.get_variable(name=var_one_name,
+                                               shape=[num_trainable_tokens, word_vec_dim],
+                                               initializer=initializer, trainable=True)
+
+        pretrained_embeddings = self.initial_encoder_embeddings[num_trainable_tokens:]
+        initializer = tf.constant_initializer(pretrained_embeddings)
+
+        pretrained_embeddings = tf.get_variable(name=var_two_name,
+                                                shape=[vocab_size - num_trainable_tokens, word_vec_dim],
+                                                initializer=initializer, trainable=False)
+
+        return trainable_embeddings, pretrained_embeddings
+
+    def initialize_embedding_layer(self, enocoder_num_trainable_tokens, encoder_vocab_size,
+                                   decoder_num_trainable_tokens, decoder_vocab_size, word_vec_dim):
 
         with tf.variable_scope('embedding_layer'):
-            # Initialize encoder embeddings
-            if encoder_embeddings is not None:
+            # ------------Initialize Encoder Embeddings---------------
+            if self.initial_encoder_embeddings is not None:
                 # Embeddings for unknown token, start of sentence token etc. are trainable
-                trainable_encoder_embeddings = self.initial_encoder_embeddings[0:enocoder_num_trainable_tokens]
-                encoder_embeddings = self.initial_encoder_embeddings[enocoder_num_trainable_tokens:]
 
-                initializer = tf.constant_initializer(encoder_embeddings)
-
-                trainable_encoder_embeddings = tf.get_variable(name="trainable_encoder_embeddings",
-                                                               shape=[enocoder_num_trainable_tokens, word_vec_dim],
-                                                               initializer=tf.constant_initializer(
-                                                                   trainable_encoder_embeddings),
-                                                               trainable=True)
-
-                pretrained_encoders_embeddings = tf.get_variable(name="pretrained_encoder_embeddings",
-                                                                 shape=[
-                                                                     encoder_vocab_size - enocoder_num_trainable_tokens,
-                                                                     word_vec_dim],
-                                                                 initializer=initializer,
-                                                                 trainable=False)
+                trainable_encoder_embeddings, pretrained_encoders_embeddings = self._initialize_word_embeddings(
+                    var_one_name='trainable_encoder_embeddings',
+                    var_two_name='pretrained_encoder_embeddings',
+                    num_trainable_tokens=enocoder_num_trainable_tokens,
+                    word_vec_dim=word_vec_dim,
+                    initial_encoder_embeddings=self.initial_encoder_embeddings,
+                    vocab_size=encoder_vocab_size)
 
                 encoder_embeddings = tf.concat([trainable_encoder_embeddings, pretrained_encoders_embeddings],
                                                name='encoder_embeddings', axis=0)
@@ -59,26 +78,16 @@ class CSQANetwork(object):
                                                      initializer=tf.random_normal_initializer(),
                                                      trainable=True)
 
-            # ------------Initialize decoder embeddings---------------
-            if decoder_embeddings is not None:
-                # Embeddings for unknown token, start of sentence token etc. are trainable
-                trainable_decoder_embeddings = self.initial_decoder_embeddings[0:decoder_num_trainable_tokens]
-                decoder_embeddings = self.initial_decoder_embeddings[decoder_num_trainable_tokens:]
+            # ------------Initialize Decoder Embeddings---------------
+            if self.initial_decoder_embeddings is not None:
 
-                initializer = tf.constant_initializer(decoder_embeddings)
-
-                trainable_decoder_embeddings = tf.get_variable(name="trainable_decoder_embeddings",
-                                                               shape=[decoder_num_trainable_tokens, word_vec_dim],
-                                                               initializer=tf.constant_initializer(
-                                                                   trainable_decoder_embeddings),
-                                                               trainable=True)
-
-                pretrained_decoder_embeddings = tf.get_variable(name="pretrained_decoder_embeddings",
-                                                                shape=[
-                                                                    decoder_vocab_size - decoder_num_trainable_tokens,
-                                                                    word_vec_dim],
-                                                                initializer=initializer,
-                                                                trainable=False)
+                trainable_decoder_embeddings, pretrained_decoder_embeddings = self._initialize_word_embeddings(
+                    var_one_name='trainable_decoder_embeddings',
+                    var_two_name='pretrained_decoder_embeddings',
+                    num_trainable_tokens=decoder_num_trainable_tokens,
+                    word_vec_dim=word_vec_dim,
+                    initial_encoder_embeddings=self.initial_decoder_embeddings,
+                    vocab_size=decoder_vocab_size)
 
                 decoder_embeddings = tf.concat([trainable_decoder_embeddings, pretrained_decoder_embeddings],
                                                name='embeddings', axis=0)
@@ -88,8 +97,16 @@ class CSQANetwork(object):
                                                      shape=[encoder_vocab_size, word_vec_dim],
                                                      initializer=tf.random_normal_initializer(),
                                                      trainable=True)
+            # ------------Initialize KG Embeddings---------------
+            kg_entity_embeddings = self.initialize_kg_embeddings(var_name='kg_entity_embeddings',
+                                                                 item_embeddings=self.kg_entity_embeddings,
+                                                                 item_vec_dim=word_vec_dim)
 
-            return encoder_embeddings, decoder_embeddings
+            kg_relation_embeddings = self.initialize_kg_embeddings(var_name='kg_relation_embeddings',
+                                                                   item_embeddings=self.kg_relations_embeddings,
+                                                                   item_vec_dim=word_vec_dim)
+
+            return encoder_embeddings, decoder_embeddings, kg_entity_embeddings, kg_relation_embeddings
 
     def model_fct(self, features, labels, mode, params):
         """
@@ -103,21 +120,20 @@ class CSQANetwork(object):
         dialgoue_representations = []
         batch_dialogues = features[DIALOGUES]
 
-        # TODO: Change until 30.05.2018
-        embedded_keys = features['keys_embedded']
-        embedded_values = features['values_embedded']
+        # embedded_keys = features['keys_embedded']
+        # embedded_values = features['values_embedded']
+        relevant_kg_triple_ids = features[RELEVANT_KG_TRIPLES]
+        subjects = relevant_kg_triple_ids[:, :, 0:1]
+        relations = relevant_kg_triple_ids[:, :, 1:2]
+        objects = relevant_kg_triple_ids[:, :, 2:3]
 
         if self.encoder_embeddings is None or self.decoder_embeddings is None:
-
             self.encoder_embeddings, self.decoder_embeddings = self.initialize_embedding_layer(
-                encoder_embeddings = self.initial_encoder_embeddings,
-                enocoder_num_trainable_tokens = params[ENCODER_NUM_TRAINABLE_TOKENS],
-                encoder_vocab_size = params[ENCODER_VOCABUALRY_SIZE],
-                decoder_embeddings = self.initial_decoder_embeddings,
-                decoder_num_trainable_tokens = params[DECODER_NUM_TRAINABLE_TOKENS],
-                decoder_vocab_size = params[DECODER_VOCABUALRY_SIZE],
+                enocoder_num_trainable_tokens=params[ENCODER_NUM_TRAINABLE_TOKENS],
+                encoder_vocab_size=params[ENCODER_VOCABUALRY_SIZE],
+                decoder_num_trainable_tokens=params[DECODER_NUM_TRAINABLE_TOKENS],
+                decoder_vocab_size=params[DECODER_VOCABUALRY_SIZE],
                 word_vec_dim=params[WORD_VEC_DIM])
-
 
         for i in range(params[BATCH_SIZE]):
             # Shape: [num_utterances, max_utter_length]
@@ -138,8 +154,13 @@ class CSQANetwork(object):
 
             sequenece_lengths = self._compute_sequence_lengths(embedded_dialogue)
             sequenece_lengths_responses = self._compute_sequence_lengths(embedded_target)
-            key_cells = embedded_keys
-            value_cells = embedded_values
+            key_cells = tf.concat(values=[embedded_subjs, embedded_relations], axis=-1)
+            value_cells = embedded_objs
+
+            # Look up KG entities
+            embedded_subjs = tf.nn.embedding_lookup(self.kg_entity_embeddings, subjects[i])
+            embedded_relations = tf.nn.embedding_lookup(self.kg_relation_embeddings, relations[i])
+            embedded_objs = tf.nn.embedding_lookup(self.kg_entity_embeddings, objects[i])
 
             # ----------------Hierarchical Encoder----------------
             with tf.variable_scope('utterance_level_encoder'):
@@ -397,3 +418,25 @@ class CSQANetwork(object):
                 decoder_embedded_input, start_tokens, end_token_id)
 
         return helper
+
+    def input_fct(self, dialogues, responses, relevant_kg_triple_ids, batch_size):
+        dialogues, responses, relevant_kg_triple_ids = tf.train.slice_input_producer(
+            [dialogues, responses, relevant_kg_triple_ids],
+            shuffle=False)
+
+        instance_ids = np.array([dialogue[INSTANCE_ID] for dialogue in dialogues], dtype=np.str)
+        utter_tok_ids = np.array([dialogue[TOKEN_IDS] for dialogue in dialogues], dtype=np.int32)
+        response_tok_ids = np.array([response[TOKEN_IDS] for response in responses], dtype=np.int32)
+
+        dataset_dict = dict(dialogues=utter_tok_ids, responses=response_tok_ids,
+                            relevant_kg_triple_ids=relevant_kg_triple_ids, instance_ids=instance_ids)
+
+        batch_dicts = tf.train.batch(dataset_dict, batch_size=batch_size,
+                                     num_threads=1, capacity=batch_size * 2,
+                                     enqueue_many=False, shapes=None, dynamic_pad=False,
+                                     allow_smaller_final_batch=False,
+                                     shared_name=None, name=None)
+
+        responses = batch_dicts.pop(RESPONSES)
+
+        return batch_dicts, responses
