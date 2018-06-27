@@ -21,7 +21,11 @@ class DialogueInstanceCreator(object):
     def __init__(self, max_num_utter_tokens, max_dialogue_context_length,
                  path_to_entity_id_to_label_mapping, path_to_property_id_to_label_mapping, ctx_vocab_freq_dict,
                  response_vocab_freq_dict, word_to_vec_dict, path_to_kb_entities_embeddings,
-                 path_to_wikidata_triples, min_count_n_gram_matching=1000):
+                 path_to_wikidata_triples, seed, min_count_n_gram_matching=1000):
+
+        # Set seed to allow reproducibility
+        self.seed = seed
+        np.random.seed(self.seed)
 
         self.word_to_vec_model = self._load_word_to_vec_model(word_to_vec_dict=word_to_vec_dict)
         self.kg_entities_embeddings_dict = self._load_kg_embeddings(
@@ -50,6 +54,9 @@ class DialogueInstanceCreator(object):
         # Note: Flag is important
         self.response_token_to_embeddings, self.response_word_to_id = self._initialize_token_mappings(
             vocab_freqs=response_vocab_freq_dict, is_ctx_vocab=False)
+
+        self.ctx_num_trainable_toks =  4
+        self.response_num_trainable_toks = 5
 
         self.responses_vocab = OrderedDict()
         self.nlp_parser = spacy.load('en')
@@ -274,17 +281,35 @@ class DialogueInstanceCreator(object):
         return id
 
     def create_training_instances(self, dialogue, file_id):
-        instances_of_dialogue, target, relevant_kg_triples = self._create_instances(self, dialogue, file_id,
+        """
+
+        :param dialogue:
+        :param file_id:
+        :rtype: list, dict, np.array
+        """
+        instances_of_dialogue, target_inst, relevant_kg_triples = self._create_instances(dialogue, file_id,
                                                                             is_training_mode=True)
-        return instances_of_dialogue, target, relevant_kg_triples
+        return instances_of_dialogue, target_inst, relevant_kg_triples
 
     def create_inference_instances(self, dialogue, file_id):
-        instances_of_dialogue, _, relevant_kg_triples = self._create_instances(self, dialogue, file_id,
+        """
+
+        :param dialogue:
+        :param file_id:
+        :rtype: list, np.array
+        """
+        instances_of_dialogue, _, relevant_kg_triples = self._create_instances(dialogue, file_id,
                                                                             is_training_mode=False)
         return instances_of_dialogue, relevant_kg_triples
 
     def _create_instances(self, dialogue, file_id, is_training_mode):
+        """
 
+        :param dialogue:
+        :param file_id:
+        :param is_training_mode:
+        :rtype: list, dict, np.array
+        """
         instances_of_dialogue = []
 
         # Set state
