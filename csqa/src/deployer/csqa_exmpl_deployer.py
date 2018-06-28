@@ -73,9 +73,9 @@ def main(vocab_path, keys_path, values_path, output_direc):
     model_params[DECODER_NUM_TRAINABLE_TOKENS] = num_trainable_tokens
     model_params[BATCH_SIZE] = 1
 
-    currentTime = time.strftime("%H:%M:%S")
-    currentDate = time.strftime("%d/%m/%Y").replace('/', '-')
-    output_direc += '/' + currentDate + '_' + currentTime + ''
+    current_time = time.strftime("%H:%M:%S")
+    current_date = time.strftime("%d/%m/%Y").replace('/', '-')
+    output_direc += '/' + current_date + '_' + current_time + ''
     os.makedirs(output_direc)
 
     # TODO: Adapt stategy for passing arguments
@@ -120,6 +120,8 @@ def add_padding(sequence, max_length, voc_to_id):
 
 
 def input_fct(dialogues, responses, keys_embedded, values_embedded, batch_size):
+    print(dialogues.shape)
+
     dialogues, responses, keys_embedded, values_embedded = tf.train.slice_input_producer(
         [dialogues, responses, keys_embedded, values_embedded],
         shuffle=False)
