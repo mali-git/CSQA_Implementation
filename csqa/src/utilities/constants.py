@@ -48,6 +48,7 @@ DECODER_VOCABUALRY_SIZE = 'decoder_vocabulary_size'
 LOGITS = 'logits'
 TOKEN_IDS = 'token_ids'
 WORD_PROBABILITIES = 'word_probabilities'
+RELEVANT_KG_TRIPLES = 'relevant_kg_triple_ids'
 
 # Hierarchical encoder related constants
 NUM_UNITS_HRE_UTTERANCE_CELL = 'num_units_hre_utterance_cell'
