@@ -40,21 +40,33 @@ def create_test_resources_dialogue_instance_creator():
 
     model.save(out)
 
-    out = '../test_resources/entity_to_embeddings.pkl'
-    entity_to_embeddings = dict()
-    entity_to_embeddings['Q11571'] = np.ones(shape=(100,))
-    entity_to_embeddings['Q615'] = np.ones(shape=(100,)) + 1.
+    out = '../test_resources/kg_entity_to_embeddings.pkl'
+    kg_entity_to_embeddings = OrderedDict()
+    kg_entity_to_embeddings['Q11571'] = np.ones(shape=(100,))
+    kg_entity_to_embeddings['Q615'] = np.ones(shape=(100,)) + 1.
+    kg_entity_to_embeddings['Q2291862'] = np.ones(shape=(100,)) + 2.
 
     with open(out, 'wb') as handle:
-        pickle.dump(entity_to_embeddings, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(kg_entity_to_embeddings, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+    out = '../test_resources/kg_relations_to_embeddings.pkl'
+    kg_relation_to_embeddings = OrderedDict()
+    kg_relation_to_embeddings['P166'] = np.ones(shape=(100,)) + 2.
+    kg_relation_to_embeddings['P19'] = np.ones(shape=(100,)) + 3.
+
+    with open(out, 'wb') as handle:
+        pickle.dump(kg_relation_to_embeddings, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 
     out = '../test_resources/filtered_entity_mapping.json'
-    entity_mapping = dict()
+    entity_mapping = OrderedDict()
     entity_mapping['Q11571'] = 'cristiano ronaldo'
     entity_mapping['Q615'] = 'lionel messi'
 
     with open(out, 'w') as outfile:
         json.dump(entity_mapping, outfile)
+
+
 
 
 
