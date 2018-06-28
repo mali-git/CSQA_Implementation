@@ -33,7 +33,7 @@ class TestDialogueInstanceCreator(unittest.TestCase):
         word_to_vec_model_dict['Path'] = path_to_word_vec_model
         word_to_vec_model_dict['is_c_format'] = False
         word_to_vec_model_dict['is_binary'] = False
-        path_to_kb_embeddings = '../test_resources/entity_to_embeddings.pkl'
+        path_to_kb_embeddings = '../test_resources/kg_entity_to_embeddings.pkl'
 
         path_to_wikidata_triples = '../test_resources/example_wikidata_triples.csv'
 
@@ -46,6 +46,7 @@ class TestDialogueInstanceCreator(unittest.TestCase):
                                                         word_to_vec_dict=word_to_vec_model_dict,
                                                         path_to_kb_entities_embeddings=path_to_kb_embeddings,
                                                         path_to_wikidata_triples=path_to_wikidata_triples,
+                                                        seed=2,
                                                         min_count_n_gram_matching=5)
 
     def test_initialize_token_mappings(self):
@@ -221,6 +222,7 @@ class TestDialogueInstanceCreator(unittest.TestCase):
         self.assertEqual(decoder_in_tok_ids[0], sos_tok_id)
         self.assertEqual(decoder_out_tok_ids[-1], eos_tok_id)
 
+        # Test whether target is shifted one to the right
         for i in range(1, len(decoder_in_tok_ids) - 1):
             self.assertEqual(decoder_in_tok_ids[i], decoder_out_tok_ids[i - 1])
 
