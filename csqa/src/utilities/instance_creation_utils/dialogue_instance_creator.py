@@ -34,10 +34,10 @@ class DialogueInstanceCreator(object):
         self.wiki_data_triples = np.loadtxt(fname=path_to_wikidata_triples, dtype=str,
                                             comments='@Comment@ Subject Predicate Object')
 
-        self.entity_id_to_label_dict = load_data_from_json_file(path_to_entity_id_to_label_mapping)
-        self.entity_label_to_id_dict = {v: k for k, v in self.entity_id_to_label_dict.items()}
-        self.predicate_id_to_label_dict = load_data_from_json_file(path_to_property_id_to_label_mapping)
-        self.predicate_label_to_id_dict = {v: k for k, v in self.predicate_id_to_label_dict.items()}
+        self.entity_kg_id_to_label_dict = load_data_from_json_file(path_to_entity_id_to_label_mapping)
+        self.entity_label_to_kg_id_dict = {v: k for k, v in self.entity_kg_id_to_label_dict.items()}
+        self.predicate_kg_id_to_label_dict = load_data_from_json_file(path_to_property_id_to_label_mapping)
+        self.predicate_label_to_kg_id_dict = {v: k for k, v in self.predicate_kg_id_to_label_dict.items()}
 
         self.modified_items, self.modified_items_id = self._build_modified_wikidata_items_dict()
 
@@ -55,7 +55,7 @@ class DialogueInstanceCreator(object):
         self.response_token_to_embeddings, self.response_word_to_id = self._initialize_token_mappings(
             vocab_freqs=response_vocab_freq_dict, is_ctx_vocab=False)
 
-        self.ctx_num_trainable_toks =  4
+        self.ctx_num_trainable_toks = 4
         self.response_num_trainable_toks = 5
 
         self.responses_vocab = OrderedDict()
@@ -63,6 +63,7 @@ class DialogueInstanceCreator(object):
         self.current_file_in_progress = None
 
         self._initialize_token_mappings(vocab_freqs=response_vocab_freq_dict, is_ctx_vocab=False)
+        self.entity_to_id, self.rel_to_id = self._initilaize_kg_item_mappings(triples=self.wiki_data_triples)
 
     def _load_kg_embeddings(self, path_to_kb_embeddings):
         """
@@ -162,7 +163,7 @@ class DialogueInstanceCreator(object):
         utterance = utterance_dict[CSQA_UTTERANCE]
 
         ids_of_entities_in_utterance = utterance_dict[CSQA_ENTITIES_IN_UTTERANCE]
-        entities_in_utterance = [self.entity_id_to_label_dict[entity_id] for entity_id in ids_of_entities_in_utterance]
+        entities_in_utterance = [self.entity_kg_id_to_label_dict[entity_id] for entity_id in ids_of_entities_in_utterance]
 
         for entity_in_utterance in entities_in_utterance:
             # Get offsets of entity
@@ -253,7 +254,7 @@ class DialogueInstanceCreator(object):
             end = offset_tuple[1]
             # Entity don't transform to lowercase
             entity = txt[start:end]
-            entity_id = self.entity_label_to_id_dict[entity]
+            entity_id = self.entity_label_to_kg_id_dict[entity]
 
             return [self._get_token_id_for_entity(entity_id, is_reponse_utter)]
 
@@ -288,7 +289,7 @@ class DialogueInstanceCreator(object):
         :rtype: list, dict, np.array
         """
         instances_of_dialogue, target_inst, relevant_kg_triples = self._create_instances(dialogue, file_id,
-                                                                            is_training_mode=True)
+                                                                                         is_training_mode=True)
         return instances_of_dialogue, target_inst, relevant_kg_triples
 
     def create_inference_instances(self, dialogue, file_id):
@@ -299,7 +300,7 @@ class DialogueInstanceCreator(object):
         :rtype: list, np.array
         """
         instances_of_dialogue, _, relevant_kg_triples = self._create_instances(dialogue, file_id,
-                                                                            is_training_mode=False)
+                                                                               is_training_mode=False)
         return instances_of_dialogue, relevant_kg_triples
 
     def _create_instances(self, dialogue, file_id, is_training_mode):
@@ -310,7 +311,7 @@ class DialogueInstanceCreator(object):
         :param is_training_mode:
         :rtype: list, dict, np.array
         """
-        instances_of_dialogue = []
+        dialogue_instance = []
 
         # Set state
         self.current_file_in_progress = file_id
@@ -328,7 +329,7 @@ class DialogueInstanceCreator(object):
             instance_id = file_id + '_' + str(counter)
             new_inst = self._create_single_instance(utter_dict=utter_dict, utter_token_ids=utter_token_ids,
                                                     instance_id=instance_id)
-            instances_of_dialogue.append(new_inst)
+            dialogue_instance.append(new_inst)
             counter += 1
 
         utter_token_ids = self._apply_instance_creation_steps(utterance_dict=response, is_reponse_utter=True)
@@ -338,18 +339,18 @@ class DialogueInstanceCreator(object):
             target_input, target_output = self._create_target_instance(utter_dict=response,
                                                                        utter_token_ids=utter_token_ids,
                                                                        instance_id=instance_id)
-            instances_of_dialogue.append(target_input)
+            dialogue_instance.append(target_input)
             target = target_output
         else:
             new_inst = self._create_single_instance(utter_dict=response, utter_token_ids=utter_token_ids,
                                                     instance_id=instance_id)
-            instances_of_dialogue.append(new_inst)
+            dialogue_instance.append(new_inst)
             target = None
 
         # Extract relevant KG triples
         relevant_kg_triples = self._extract_relevant_kg_triples(utter_dict=context[-1])
 
-        return instances_of_dialogue, target, relevant_kg_triples
+        return dialogue_instance, target, relevant_kg_triples
 
     def _create_single_instance(self, utter_dict, utter_token_ids, instance_id):
         new_inst = OrderedDict()
@@ -398,8 +399,8 @@ class DialogueInstanceCreator(object):
         return utter_tok_ids + padding
 
     def _build_modified_wikidata_items_dict(self):
-        kg_items = list(self.entity_id_to_label_dict.values()) + list(self.predicate_id_to_label_dict.values())
-        kg_ids = list(self.entity_id_to_label_dict.keys()) + list(self.predicate_id_to_label_dict.keys())
+        kg_items = list(self.entity_kg_id_to_label_dict.values()) + list(self.predicate_kg_id_to_label_dict.values())
+        kg_ids = list(self.entity_kg_id_to_label_dict.keys()) + list(self.predicate_kg_id_to_label_dict.keys())
 
         items = []
         item_ids = []
@@ -421,7 +422,7 @@ class DialogueInstanceCreator(object):
         :param utter_dict: Dictionary containing all information about passed utterance
         :rtype: np.array
         """
-
+        data = self.wiki_data_triples
         utter_txt = utter_dict[CSQA_UTTERANCE]
         doc = self.nlp_parser(u'%s' % (utter_txt))
         tokens = [tok.lower_ for tok in doc]
@@ -443,6 +444,23 @@ class DialogueInstanceCreator(object):
         relevant_triples_indices = np.unique(
             np.concatenate([relevant_subj_indices, relevant_pred_indices, relevant_obj_indices], axis=-1))
 
-        relevant_triples = self.wiki_data_triples[relevant_triples_indices]
+        relevant_triples = data[relevant_triples_indices]
+        relevant_subj_ids = np.vectorize(self.entity_to_id.get)(relevant_triples[:,0:1])
+        relevant_predicate_ids = np.vectorize(self.rel_to_id.get)(relevant_triples[:, 1:2])
+        relevant_obj_ids = np.vectorize(self.entity_to_id.get)(relevant_triples[:, 2:3])
+
+        relevant_triples = np.concatenate([relevant_subj_ids,relevant_predicate_ids,relevant_obj_ids],axis=-1)
 
         return relevant_triples
+
+    def _initilaize_kg_item_mappings(self, triples):
+        subjects = triples[:, 0:1]
+        predicates = triples[:, 1:2]
+        objects = triples[:, 2:3]
+
+        entities = list(set(np.ndarray.flatten(np.concatenate([subjects, objects])).tolist()))
+        relations = list(set(np.ndarray.flatten(predicates).tolist()))
+        entity_to_id = {value: key for key, value in enumerate(entities)}
+        rel_to_id = {value: key for key, value in enumerate(relations)}
+
+        return entity_to_id, rel_to_id
