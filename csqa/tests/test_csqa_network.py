@@ -11,7 +11,7 @@ import tensorflow as tf
 from neural_network_models.csqa_network import CSQANetwork
 from utilities.constants import NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, WORD_VEC_DIM, \
     ENCODER_VOCABUALRY_SIZE, DECODER_VOCABUALRY_SIZE, LEARNING_RATE, OPTIMIZER, MAX_NUM_UTTER_TOKENS, ADAM, \
-    ENCODER_NUM_TRAINABLE_TOKENS, DECODER_NUM_TRAINABLE_TOKENS, BATCH_SIZE
+    ENCODER_NUM_TRAINABLE_TOKENS, DECODER_NUM_TRAINABLE_TOKENS, BATCH_SIZE, KG_WORD, KG_WORD_ID
 from utilities.corpus_preprocessing_utils.load_dialogues import load_data_from_json_file
 from utilities.general_utils import load_dict_from_disk
 from utilities.instance_creation_utils.dialogue_instance_creator import DialogueInstanceCreator
@@ -89,6 +89,7 @@ class TestCSQANetwork(unittest.TestCase):
         self.model_params[ENCODER_NUM_TRAINABLE_TOKENS] = self.ctx_num_trainable_toks
         self.model_params[DECODER_NUM_TRAINABLE_TOKENS] = self.response_num_trainable_toks
         self.model_params[BATCH_SIZE] = 1
+        self.model_params[KG_WORD_ID] =  self.instance_creator.response_word_to_id[KG_WORD]
 
     def test_initialize_model(self):
         current_time = time.strftime("%H:%M:%S")
@@ -114,6 +115,7 @@ class TestCSQANetwork(unittest.TestCase):
 
         instances_of_dialogue, target_inst, relevant_kg_triples = self.instance_creator.create_training_instances(
             dialogue=dialogue, file_id=file_id)
+
 
         relevant_kg_triples = np.expand_dims(relevant_kg_triples,axis=0)
         responses = [target_inst]
