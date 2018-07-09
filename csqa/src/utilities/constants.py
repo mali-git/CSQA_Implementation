@@ -49,6 +49,8 @@ LOGITS = 'logits'
 TOKEN_IDS = 'token_ids'
 WORD_PROBABILITIES = 'word_probabilities'
 RELEVANT_KG_TRIPLES = 'relevant_kg_triple_ids'
+CANDIDATE_RESPONSE_ENTITIES = 'candidate_response_entities'
+CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES = 'candidate_response_entities_probabilities'
 
 # Hierarchical encoder related constants
 NUM_UNITS_HRE_UTTERANCE_CELL = 'num_units_hre_utterance_cell'
@@ -79,6 +81,7 @@ PREDICT_SERVING_KEY = 'predict'
 # Vocabulary related keys
 TARGET_SOS_ID = 'target_sos_id'
 TARGET_EOS_ID = 'target_eos_id'
+KG_WORD_ID = 'kg_word_id'
 TARGET_VOCAB_SIZE = 'target_vocab_size'
 ENCODER_NUM_TRAINABLE_TOKENS = 'encoder_number_of_trainable_tokens'
 DECODER_NUM_TRAINABLE_TOKENS = 'decoder_number_of_trainable_tokens'
