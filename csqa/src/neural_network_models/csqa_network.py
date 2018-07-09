@@ -27,6 +27,7 @@ class CSQANetwork(object):
         self.decoder_embeddings = None
         self.kg_entity_embeddings = kg_entity_embeddings
         self.kg_relations_embeddings = kg_relations_embeddings
+        self.word_vec_dim = None
 
     def initialize_kg_embeddings(self, var_name, item_embeddings, item_vec_dim):
         initializer = tf.constant_initializer(item_embeddings)
@@ -210,26 +211,27 @@ class CSQANetwork(object):
 
         # ----------------Key-Value Memory Network----------------
         with tf.variable_scope('key_value_memory_network'):
-            word_vec_dim = params[WORD_VEC_DIM]
+            self.word_vec_dim = params[WORD_VEC_DIM]
             feature_size = params[NUM_UNITS_HRE_CONTEXT_CELL]
             num_hops = params[NUM_HOPS]
             initial_queries = dialgoue_representations
 
             # R_i: Matrix used to get query representation q_i+1
-            self.R = [tf.Variable(
-                tf.truncated_normal([feature_size, feature_size],
-                                    stddev=0.1)) for R_i in range(num_hops)]
-            self.A = tf.Variable(
-                tf.truncated_normal([feature_size, word_vec_dim], stddev=0.1),
-                name="A")
-            self.keys_feature_map = tf.Variable(
-                tf.truncated_normal([word_vec_dim, 2*word_vec_dim], stddev=0.1),
+            self.R = [tf.get_variable(
+                initializer=tf.truncated_normal([feature_size, feature_size],
+                                    stddev=0.1), name='R_' + str(i)) for i in range(num_hops)]
+            self.A = tf.get_variable(initializer=tf.truncated_normal([feature_size, self.word_vec_dim], stddev=0.1),
                 name="A")
 
             # output after last iteration over memory adressing/reading
             # Shape: (batch_size, feature_size)
             memory_output = self._get_response_from_memory(num_hops=num_hops, initial_queries=initial_queries,
                                                            key_cells=key_cells, value_cells=value_cells)
+
+        with tf.variable_scope('compute_entites_in_response'):
+            pass
+
+
 
         # ----------------Decoder----------------
         train_loss = None
@@ -348,6 +350,9 @@ class CSQANetwork(object):
         key_cells = tf.transpose(key_cells, [1, 0, 2])
         # [embedding_size, batch_size * memory_size]
         key_cells = tf.reshape(key_cells, shape=(m_keys, k_keys * n_keys))
+        self.keys_feature_map = tf.Variable(
+            tf.truncated_normal([self.word_vec_dim, 2 * self.word_vec_dim], stddev=0.1),
+            name="keys_feature_map",trainable=False)
         # TODO: Check
         key_cells = tf.matmul(self.keys_feature_map,key_cells)
 
