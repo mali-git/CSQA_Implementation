@@ -10,7 +10,8 @@ from utilities.constants import NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONT
     WORD_VEC_DIM, ENCODER_VOCABUALRY_SIZE, LEARNING_RATE, OPTIMIZER, LOGITS, \
     WORD_PROBABILITIES, TOKEN_IDS, TARGET_SOS_ID, TARGET_EOS_ID, MAX_NUM_UTTER_TOKENS, BATCH_SIZE, \
     ENCODER_NUM_TRAINABLE_TOKENS, \
-    DIALOGUES, DECODER_NUM_TRAINABLE_TOKENS, DECODER_VOCABUALRY_SIZE, RESPONSES, RELEVANT_KG_TRIPLES, INSTANCE_ID
+    DIALOGUES, DECODER_NUM_TRAINABLE_TOKENS, DECODER_VOCABUALRY_SIZE, RESPONSES, RELEVANT_KG_TRIPLES, INSTANCE_ID, \
+    CANDIDATE_RESPONSE_ENTITIES, KG_WORD_ID, CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES
 from utilities.tensorflow_estimator_utils import get_estimator_specification, get_optimizer
 
 logging.basicConfig(level=logging.INFO)
@@ -228,10 +229,6 @@ class CSQANetwork(object):
             memory_output = self._get_response_from_memory(num_hops=num_hops, initial_queries=initial_queries,
                                                            key_cells=key_cells, value_cells=value_cells)
 
-        with tf.variable_scope('compute_entites_in_response'):
-            pass
-
-
 
         # ----------------Decoder----------------
         train_loss = None
@@ -265,6 +262,7 @@ class CSQANetwork(object):
 
             logits = outputs.rnn_output
 
+            # Returned sample_ids are the argmax of the RNN output logits
             predicted_word_ids = outputs.sample_id
 
             if mode != tf.estimator.ModeKeys.PREDICT:
@@ -281,6 +279,19 @@ class CSQANetwork(object):
                 # Normalize loss based on batch_size
                 train_loss = (tf.reduce_sum(cross_entropy * target_weights) / tf.to_float(batch_size))
 
+        # ----------------Find Candidates Entities For Responses----------------
+        with tf.variable_scope('compute_entites_in_response'):
+            self.B = tf.get_variable(initializer=tf.truncated_normal([feature_size, self.word_vec_dim], stddev=0.1),
+                name="B")
+            # [word_vec_dim,batch_size]
+            probs_of_candidates_entities = tf.matmul(self.B,memory_output,transpose_a=True,transpose_b=True)
+            # [batch_size,word_vec_dim]
+            probs_of_candidates_entities = tf.nn.softmax(tf.transpose(probs_of_candidates_entities),axis=0)
+
+            # mask = tf.equal(predicted_word_ids, tf.constant[params[KG_WORD_ID]])
+            # tf.count_nonzero(input_tensor=mask, axis=1)
+
+
         # ----------------Prepare Output----------------
 
         # Dictionary containing the predictions
@@ -288,6 +299,8 @@ class CSQANetwork(object):
         predictions_dict[LOGITS] = logits
         predictions_dict[WORD_PROBABILITIES] = tf.nn.softmax(logits)
         predictions_dict[TOKEN_IDS] = predicted_word_ids
+        predictions_dict[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES] = probs_of_candidates_entities
+        predictions_dict[CANDIDATE_RESPONSE_ENTITIES] = objects
 
         # Needed by Java applications. Model can be called from Java
         classification_output = export_output.ClassificationOutput(
