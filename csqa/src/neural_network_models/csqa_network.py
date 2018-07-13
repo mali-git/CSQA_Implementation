@@ -11,7 +11,7 @@ from utilities.constants import NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONT
     WORD_PROBABILITIES, TOKEN_IDS, TARGET_SOS_ID, TARGET_EOS_ID, MAX_NUM_UTTER_TOKENS, BATCH_SIZE, \
     ENCODER_NUM_TRAINABLE_TOKENS, \
     DIALOGUES, DECODER_NUM_TRAINABLE_TOKENS, DECODER_VOCABUALRY_SIZE, RESPONSES, RELEVANT_KG_TRIPLES, INSTANCE_ID, \
-    CANDIDATE_RESPONSE_ENTITIES, KG_WORD_ID, CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES
+    CANDIDATE_RESPONSE_ENTITIES, CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES
 from utilities.tensorflow_estimator_utils import get_estimator_specification, get_optimizer
 
 logging.basicConfig(level=logging.INFO)
@@ -163,10 +163,9 @@ class CSQANetwork(object):
             embedded_objs = tf.nn.embedding_lookup(self.kg_entity_embeddings, objects[i])
 
             key_cells = tf.concat(values=[embedded_subjs, embedded_relations], axis=-1)
-            key_cells = tf.transpose(key_cells,[0,2,1])
+            key_cells = tf.transpose(key_cells, [0, 2, 1])
             value_cells = embedded_objs
-            value_cells = tf.transpose(value_cells,[0,2,1])
-
+            value_cells = tf.transpose(value_cells, [0, 2, 1])
 
             # ----------------Hierarchical Encoder----------------
             with tf.variable_scope('utterance_level_encoder'):
@@ -220,15 +219,14 @@ class CSQANetwork(object):
             # R_i: Matrix used to get query representation q_i+1
             self.R = [tf.get_variable(
                 initializer=tf.truncated_normal([feature_size, feature_size],
-                                    stddev=0.1), name='R_' + str(i)) for i in range(num_hops)]
+                                                stddev=0.1), name='R_' + str(i)) for i in range(num_hops)]
             self.A = tf.get_variable(initializer=tf.truncated_normal([feature_size, self.word_vec_dim], stddev=0.1),
-                name="A")
+                                     name="A")
 
             # output after last iteration over memory adressing/reading
             # Shape: (batch_size, feature_size)
             memory_output = self._get_response_from_memory(num_hops=num_hops, initial_queries=initial_queries,
                                                            key_cells=key_cells, value_cells=value_cells)
-
 
         # ----------------Decoder----------------
         train_loss = None
@@ -282,15 +280,23 @@ class CSQANetwork(object):
         # ----------------Find Candidates Entities For Responses----------------
         with tf.variable_scope('compute_entites_in_response'):
             self.B = tf.get_variable(initializer=tf.truncated_normal([feature_size, self.word_vec_dim], stddev=0.1),
-                name="B")
+                                     name="B")
             # [word_vec_dim,batch_size]
-            probs_of_candidates_entities = tf.matmul(self.B,memory_output,transpose_a=True,transpose_b=True)
+            b_q = tf.matmul(self.B, memory_output, transpose_a=True, transpose_b=True)
+            # [batch_size, word_vec_dim]
+            b_q = tf.transpose(b_q)
+            value_cells = tf.transpose(value_cells, [1, 0, 2])
+            shape_value_cells = tf.shape(value_cells)
+            value_cells = tf.reshape(value_cells,
+                                     shape=(shape_value_cells[1], shape_value_cells[0] * shape_value_cells[2]))
+            candidate_resp_ent = tf.matmul(b_q, value_cells)
+
             # [batch_size,word_vec_dim]
-            probs_of_candidates_entities = tf.nn.softmax(tf.transpose(probs_of_candidates_entities),axis=0)
+            b_q = tf.nn.softmax(candidate_resp_ent, axis=0)
+
 
             # mask = tf.equal(predicted_word_ids, tf.constant[params[KG_WORD_ID]])
             # tf.count_nonzero(input_tensor=mask, axis=1)
-
 
         # ----------------Prepare Output----------------
 
@@ -299,8 +305,9 @@ class CSQANetwork(object):
         predictions_dict[LOGITS] = logits
         predictions_dict[WORD_PROBABILITIES] = tf.nn.softmax(logits)
         predictions_dict[TOKEN_IDS] = predicted_word_ids
-        predictions_dict[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES] = probs_of_candidates_entities
+        predictions_dict[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES] = b_q
         predictions_dict[CANDIDATE_RESPONSE_ENTITIES] = objects
+
 
         # Needed by Java applications. Model can be called from Java
         classification_output = export_output.ClassificationOutput(
@@ -365,9 +372,9 @@ class CSQANetwork(object):
         key_cells = tf.reshape(key_cells, shape=(m_keys, k_keys * n_keys))
         self.keys_feature_map = tf.Variable(
             tf.truncated_normal([self.word_vec_dim, 2 * self.word_vec_dim], stddev=0.1),
-            name="keys_feature_map",trainable=False)
+            name="keys_feature_map", trainable=False)
         # TODO: Check
-        key_cells = tf.matmul(self.keys_feature_map,key_cells)
+        key_cells = tf.matmul(self.keys_feature_map, key_cells)
 
         # For each batch element the columns represent the values
         value_cells = tf.transpose(value_cells, [1, 0, 2])
@@ -449,13 +456,12 @@ class CSQANetwork(object):
     def input_fct(self, dialogues, responses, relevant_kg_triple_ids, batch_size):
 
         instance_ids = np.array([dialogue[INSTANCE_ID] for dialogue in dialogues], dtype=np.str)
-        instance_ids = np.expand_dims(instance_ids,axis=0)
-        instance_ids = np.expand_dims(instance_ids, axis= -1)
+        instance_ids = np.expand_dims(instance_ids, axis=0)
+        instance_ids = np.expand_dims(instance_ids, axis=-1)
         utter_tok_ids = np.array([dialogue[TOKEN_IDS] for dialogue in dialogues], dtype=np.int32)
-        utter_tok_ids = np.expand_dims(utter_tok_ids,axis=0)
+        utter_tok_ids = np.expand_dims(utter_tok_ids, axis=0)
         response_tok_ids = np.array([response[TOKEN_IDS] for response in responses], dtype=np.int32)
         response_tok_ids = np.expand_dims(response_tok_ids, axis=0)
-
 
         utter_tok_ids, instance_ids, response_tok_ids, relevant_kg_triple_ids = tf.train.slice_input_producer(
             [utter_tok_ids, instance_ids, response_tok_ids, relevant_kg_triple_ids],
