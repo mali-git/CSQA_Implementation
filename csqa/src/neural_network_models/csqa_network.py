@@ -27,10 +27,12 @@ class CSQANetwork(object):
         self.encoder_embeddings = None
         self.decoder_embeddings = None
         self.kg_entity_embeddings = kg_entity_embeddings
-        self.kg_relations_embeddings = kg_relations_embeddings
+        self.kg_relation_embeddings = kg_relations_embeddings
         self.word_vec_dim = None
+        self.is_embedding_layer_initialised = False
 
     def initialize_kg_embeddings(self, var_name, item_embeddings, item_vec_dim):
+
         initializer = tf.constant_initializer(item_embeddings)
         embeddings = tf.get_variable(name=var_name,
                                      shape=[len(item_embeddings), item_vec_dim],
@@ -47,7 +49,7 @@ class CSQANetwork(object):
                                                shape=[num_trainable_tokens, word_vec_dim],
                                                initializer=initializer, trainable=True)
 
-        pretrained_embeddings = self.initial_encoder_embeddings[num_trainable_tokens:]
+        pretrained_embeddings = initial_embeddings[num_trainable_tokens:]
         initializer = tf.constant_initializer(pretrained_embeddings)
 
         pretrained_embeddings = tf.get_variable(name=var_two_name,
@@ -71,14 +73,15 @@ class CSQANetwork(object):
                     num_trainable_tokens=enocoder_num_trainable_tokens,
                     word_vec_dim=word_vec_dim)
 
-                encoder_embeddings = tf.concat([trainable_encoder_embeddings, pretrained_encoders_embeddings],
-                                               name='encoder_embeddings', axis=0)
+                self.encoder_embeddings = tf.concat(
+                    [trainable_encoder_embeddings, pretrained_encoders_embeddings],
+                    name='encoder_embeddings', axis=0)
 
             else:
-                encoder_embeddings = tf.get_variable(name="encoder_embeddings",
-                                                     shape=[encoder_vocab_size, word_vec_dim],
-                                                     initializer=tf.random_normal_initializer(),
-                                                     trainable=True)
+                self.encoder_embeddings = tf.get_variable(name="encoder_embeddings",
+                                                                  shape=[encoder_vocab_size, word_vec_dim],
+                                                                  initializer=tf.random_normal_initializer(),
+                                                                  trainable=True)
 
             # ------------Initialize Decoder Embeddings---------------
             if self.initial_decoder_embeddings is not None:
@@ -90,24 +93,27 @@ class CSQANetwork(object):
                     num_trainable_tokens=decoder_num_trainable_tokens,
                     word_vec_dim=word_vec_dim)
 
-                decoder_embeddings = tf.concat([trainable_decoder_embeddings, pretrained_decoder_embeddings],
-                                               name='embeddings', axis=0)
+                self.decoder_embeddings = tf.concat(
+                    [trainable_decoder_embeddings, pretrained_decoder_embeddings],
+                    name='embeddings', axis=0)
 
             else:
-                decoder_embeddings = tf.get_variable(name="embeddings",
-                                                     shape=[encoder_vocab_size, word_vec_dim],
-                                                     initializer=tf.random_normal_initializer(),
-                                                     trainable=True)
+                self.decoder_embeddings = tf.get_variable(name="embeddings",
+                                                                  shape=[encoder_vocab_size, word_vec_dim],
+                                                                  initializer=tf.random_normal_initializer(),
+                                                                  trainable=True)
             # ------------Initialize KG Embeddings---------------
-            kg_entity_embeddings = self.initialize_kg_embeddings(var_name='kg_entity_embeddings',
-                                                                 item_embeddings=self.kg_entity_embeddings,
-                                                                 item_vec_dim=word_vec_dim)
+            if self.kg_entity_embeddings is None:
+                self.kg_entity_embeddings = self.initialize_kg_embeddings(var_name='kg_entity_embeddings',
+                                                                          item_embeddings=self.kg_entity_embeddings,
+                                                                          item_vec_dim=word_vec_dim)
 
-            kg_relation_embeddings = self.initialize_kg_embeddings(var_name='kg_relation_embeddings',
-                                                                   item_embeddings=self.kg_relations_embeddings,
-                                                                   item_vec_dim=word_vec_dim)
+            if self.kg_relation_embeddings is None:
+                self.kg_relation_embeddings = self.initialize_kg_embeddings(var_name='kg_relation_embeddings',
+                                                                            item_embeddings=self.kg_relation_embeddings,
+                                                                            item_vec_dim=word_vec_dim)
 
-            return encoder_embeddings, decoder_embeddings, kg_entity_embeddings, kg_relation_embeddings
+            self.is_embedding_layer_initialised = True
 
     def model_fct(self, features, labels, mode, params):
         """
@@ -128,14 +134,12 @@ class CSQANetwork(object):
         relations = relevant_kg_triple_ids[:, :, 1:2]
         objects = relevant_kg_triple_ids[:, :, 2:3]
 
-        if self.encoder_embeddings is None or self.decoder_embeddings is None:
-            self.encoder_embeddings, self.decoder_embeddings, self.kg_entity_embeddings, self.kg_relation_embeddings = \
-                self.initialize_embedding_layer(
-                    enocoder_num_trainable_tokens=params[ENCODER_NUM_TRAINABLE_TOKENS],
-                    encoder_vocab_size=params[ENCODER_VOCABUALRY_SIZE],
-                    decoder_num_trainable_tokens=params[DECODER_NUM_TRAINABLE_TOKENS],
-                    decoder_vocab_size=params[DECODER_VOCABUALRY_SIZE],
-                    word_vec_dim=params[WORD_VEC_DIM])
+        if self.is_embedding_layer_initialised is False:
+            self.initialize_embedding_layer(enocoder_num_trainable_tokens=params[ENCODER_NUM_TRAINABLE_TOKENS],
+                                            encoder_vocab_size=params[ENCODER_VOCABUALRY_SIZE],
+                                            decoder_num_trainable_tokens=params[DECODER_NUM_TRAINABLE_TOKENS],
+                                            decoder_vocab_size=params[DECODER_VOCABUALRY_SIZE],
+                                            word_vec_dim=params[WORD_VEC_DIM])
 
         for i in range(params[BATCH_SIZE]):
             # Shape: [num_utterances, max_utter_length]
@@ -149,13 +153,10 @@ class CSQANetwork(object):
             embedded_decoder_input = tf.expand_dims(input=embedded_decoder_input, axis=0)
             # Remove last response since it is saved separately in embedded_decoder_input
             embedded_dialogue = embedded_dialogue[:-1]
-
-            # In training and eval mode, last embedded token is </s>
-            embedded_target = tf.nn.embedding_lookup(self.encoder_embeddings, labels[i])
-            embedded_target = tf.expand_dims(input=embedded_target, axis=0)
-
             sequenece_lengths = self._compute_sequence_lengths(embedded_dialogue)
-            sequenece_lengths_responses = self._compute_sequence_lengths(embedded_target)
+
+            if mode != tf.estimator.ModeKeys.PREDICT:
+                pass
 
             # Look up KG entities
             embedded_subjs = tf.nn.embedding_lookup(self.kg_entity_embeddings, subjects[i])
@@ -258,12 +259,17 @@ class CSQANetwork(object):
                 outputs, final_context_state, final_sequence_lengths = tf.contrib.seq2seq.dynamic_decode(
                     decoder=decoder)
 
-            logits = outputs.rnn_output
+            logits = tf.identity(outputs.rnn_output, name='logits')
 
             # Returned sample_ids are the argmax of the RNN output logits
             predicted_word_ids = outputs.sample_id
 
             if mode != tf.estimator.ModeKeys.PREDICT:
+                # In training and eval mode, last embedded token is </s>
+                embedded_target = tf.nn.embedding_lookup(self.encoder_embeddings, labels[i])
+                embedded_target = tf.expand_dims(input=embedded_target, axis=0)
+
+                sequenece_lengths_responses = self._compute_sequence_lengths(embedded_target)
                 # target's shape: [batch_size, max_seq_length] logit's shape: [batch_size, max_seq_length, word_vec_dim]
                 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
                     labels=labels, logits=logits)
@@ -285,15 +291,20 @@ class CSQANetwork(object):
             b_q = tf.matmul(self.B, memory_output, transpose_a=True, transpose_b=True)
             # [batch_size, word_vec_dim]
             b_q = tf.transpose(b_q)
+
+            org_shape_value_cells = tf.shape(value_cells)
             value_cells = tf.transpose(value_cells, [1, 0, 2])
-            shape_value_cells = tf.shape(value_cells)
+
+            # [word_dim, batch_size * num_values]
             value_cells = tf.reshape(value_cells,
-                                     shape=(shape_value_cells[1], shape_value_cells[0] * shape_value_cells[2]))
+                                     shape=(
+                                         org_shape_value_cells[1], org_shape_value_cells[0] * org_shape_value_cells[2]))
+
+            # [batch_size, num_objects]
             candidate_resp_ent = tf.matmul(b_q, value_cells)
 
-            # [batch_size,word_vec_dim]
-            b_q = tf.nn.softmax(candidate_resp_ent, axis=0)
-
+            # [batch_size, num_objects]
+            b_q = tf.nn.softmax(candidate_resp_ent, axis=0, name='probabilities_response_candidate_entities')
 
             # mask = tf.equal(predicted_word_ids, tf.constant[params[KG_WORD_ID]])
             # tf.count_nonzero(input_tensor=mask, axis=1)
@@ -308,10 +319,12 @@ class CSQANetwork(object):
         predictions_dict[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES] = b_q
         predictions_dict[CANDIDATE_RESPONSE_ENTITIES] = objects
 
-
         # Needed by Java applications. Model can be called from Java
         classification_output = export_output.ClassificationOutput(
             scores=tf.nn.softmax(logits))
+
+        # Reset flag, so that for new construction of graph embedding layer is rebuild
+        self.is_embedding_layer_initialised = False
 
         # Check for prediction mode first, since in prediction mode there is no 'train_op'
         if mode == tf.estimator.ModeKeys.PREDICT:
@@ -449,12 +462,11 @@ class CSQANetwork(object):
             start_tokens = tf.fill([batch_size], params[TARGET_SOS_ID])
             end_token_id = params[TARGET_EOS_ID]
             helper = tf.contrib.seq2seq.GreedyEmbeddingHelper(
-                decoder_embedded_input, start_tokens, end_token_id)
+                self.decoder_embeddings, start_tokens, end_token_id)
 
         return helper
 
     def input_fct(self, dialogues, responses, relevant_kg_triple_ids, batch_size):
-
         instance_ids = np.array([dialogue[INSTANCE_ID] for dialogue in dialogues], dtype=np.str)
         instance_ids = np.expand_dims(instance_ids, axis=0)
         instance_ids = np.expand_dims(instance_ids, axis=-1)
@@ -479,3 +491,46 @@ class CSQANetwork(object):
         batch_dicts.pop(RESPONSES)
 
         return batch_dicts, response_tok_ids
+
+    def input_predict_fct(self, dialogues, relevant_kg_triple_ids, batch_size):
+
+        instance_ids = np.array([dialogue[INSTANCE_ID] for dialogue in dialogues], dtype=np.str)
+        instance_ids = np.expand_dims(instance_ids, axis=0)
+        instance_ids = np.expand_dims(instance_ids, axis=-1)
+        utter_tok_ids = np.array([dialogue[TOKEN_IDS] for dialogue in dialogues], dtype=np.int32)
+        utter_tok_ids = np.expand_dims(utter_tok_ids, axis=0)
+        utter_tok_ids, instance_ids, relevant_kg_triple_ids = tf.train.slice_input_producer(
+            [utter_tok_ids, instance_ids, relevant_kg_triple_ids],
+            shuffle=False)
+
+        dataset_dict = dict(dialogues=utter_tok_ids,
+                            relevant_kg_triple_ids=relevant_kg_triple_ids, instance_ids=instance_ids)
+
+        batch_dicts = tf.train.batch(dataset_dict, batch_size=batch_size,
+                                     num_threads=1, capacity=batch_size * 2,
+                                     enqueue_many=False, shapes=None, dynamic_pad=False,
+                                     allow_smaller_final_batch=False,
+                                     shared_name=None, name=None)
+
+        return batch_dicts
+
+    def input_inference_fct(self, dialogues, relevant_kg_triple_ids):
+        instance_ids = np.array([dialogue[INSTANCE_ID] for dialogue in dialogues], dtype=np.str)
+        instance_ids = np.expand_dims(instance_ids, axis=0)
+        instance_ids = np.expand_dims(instance_ids, axis=-1)
+        utter_tok_ids = np.array([dialogue[TOKEN_IDS] for dialogue in dialogues], dtype=np.int32)
+        utter_tok_ids = np.expand_dims(utter_tok_ids, axis=0)
+        utter_tok_ids = tf.constant(utter_tok_ids)
+        relevant_kg_triple_ids = tf.constant(relevant_kg_triple_ids)
+        instance_ids = tf.constant(instance_ids)
+        dataset_dict = dict(dialogues=utter_tok_ids,
+                            relevant_kg_triple_ids=relevant_kg_triple_ids, instance_ids=instance_ids)
+
+        # utter_tok_ids, instance_ids, relevant_kg_triple_ids = tf.train.slice_input_producer(
+        #     [utter_tok_ids, instance_ids, relevant_kg_triple_ids],
+        #     shuffle=False)
+
+        return tf.estimator.inputs.numpy_input_fn(
+            x={DIALOGUES: utter_tok_ids, RELEVANT_KG_TRIPLES: relevant_kg_triple_ids, 'instance_ids': instance_ids},
+            num_epochs=1,
+            shuffle=False)
