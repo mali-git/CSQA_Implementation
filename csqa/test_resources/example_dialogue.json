@@ -2,7 +2,8 @@
   {
     "entities_in_utterance": ["Q11571"],
     "speaker": "USER",
-    "utterance": "cristiano ronaldo final june soccer goal"
+    "utterance": "cristiano ronaldo final june soccer goal",
+    "ques_type_id": 1
   },
   {
     "entities_in_utterance": ["Q11571"],
@@ -12,7 +13,8 @@
   {
     "entities_in_utterance": ["Q11571"],
     "speaker": "USER",
-    "utterance": "cristiano ronaldo final june soccer goal"
+    "utterance": "cristiano ronaldo final june soccer goal",
+    "ques_type_id": 1
   },
   {
     "entities_in_utterance": ["Q615"],
