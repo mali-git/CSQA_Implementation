@@ -7,7 +7,7 @@ import spacy
 from gensim.models import KeyedVectors
 
 from utilities.constants import CSQA_UTTERANCE, CSQA_ENTITIES_IN_UTTERANCE, UNKNOWN_TOKEN, SOS_TOKEN, EOS_TOKEN, \
-    KG_WORD, PADDING_TOKEN, TOKEN_IDS, INSTANCE_ID
+    KG_WORD, PADDING_TOKEN, TOKEN_IDS, INSTANCE_ID, CSQA_QUES_TYPE_ID
 from utilities.corpus_preprocessing_utils.load_dialogues import load_data_from_json_file
 from utilities.corpus_preprocessing_utils.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text, \
     compute_nlp_features
@@ -163,7 +163,8 @@ class DialogueInstanceCreator(object):
         utterance = utterance_dict[CSQA_UTTERANCE]
 
         ids_of_entities_in_utterance = utterance_dict[CSQA_ENTITIES_IN_UTTERANCE]
-        entities_in_utterance = [self.entity_kg_id_to_label_dict[entity_id] for entity_id in ids_of_entities_in_utterance]
+        entities_in_utterance = [self.entity_kg_id_to_label_dict[entity_id] for entity_id in
+                                 ids_of_entities_in_utterance]
 
         for entity_in_utterance in entities_in_utterance:
             # Get offsets of entity
@@ -359,6 +360,10 @@ class DialogueInstanceCreator(object):
         new_inst[TOKEN_IDS] = utter_token_ids
         new_inst[CSQA_ENTITIES_IN_UTTERANCE] = utter_dict[CSQA_ENTITIES_IN_UTTERANCE]
 
+        if CSQA_QUES_TYPE_ID in utter_dict:
+            # Utternace is a question
+            new_inst[CSQA_QUES_TYPE_ID] = int(utter_dict[CSQA_QUES_TYPE_ID])
+
         return new_inst
 
     def _create_target_instance(self, utter_dict, utter_token_ids, instance_id):
@@ -445,11 +450,11 @@ class DialogueInstanceCreator(object):
             np.concatenate([relevant_subj_indices, relevant_pred_indices, relevant_obj_indices], axis=-1))
 
         relevant_triples = data[relevant_triples_indices]
-        relevant_subj_ids = np.vectorize(self.entity_to_id.get)(relevant_triples[:,0:1])
+        relevant_subj_ids = np.vectorize(self.entity_to_id.get)(relevant_triples[:, 0:1])
         relevant_predicate_ids = np.vectorize(self.rel_to_id.get)(relevant_triples[:, 1:2])
         relevant_obj_ids = np.vectorize(self.entity_to_id.get)(relevant_triples[:, 2:3])
 
-        relevant_triples = np.concatenate([relevant_subj_ids,relevant_predicate_ids,relevant_obj_ids],axis=-1)
+        relevant_triples = np.concatenate([relevant_subj_ids, relevant_predicate_ids, relevant_obj_ids], axis=-1)
 
         return relevant_triples
 

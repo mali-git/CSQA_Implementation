@@ -11,7 +11,7 @@ from utilities.constants import NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONT
     WORD_PROBABILITIES, TOKEN_IDS, TARGET_SOS_ID, TARGET_EOS_ID, MAX_NUM_UTTER_TOKENS, BATCH_SIZE, \
     ENCODER_NUM_TRAINABLE_TOKENS, \
     DIALOGUES, DECODER_NUM_TRAINABLE_TOKENS, DECODER_VOCABUALRY_SIZE, RESPONSES, RELEVANT_KG_TRIPLES, INSTANCE_ID, \
-    CANDIDATE_RESPONSE_ENTITIES, CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES
+    CANDIDATE_RESPONSE_ENTITIES, CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES, CSQA_QUES_TYPE_ID, QUES_TYPE_IDS
 from utilities.tensorflow_estimator_utils import get_estimator_specification, get_optimizer
 
 logging.basicConfig(level=logging.INFO)
@@ -135,6 +135,7 @@ class CSQANetwork(object):
         subjects = relevant_kg_triple_ids[:, :, 0:1]
         relations = relevant_kg_triple_ids[:, :, 1:2]
         objects = relevant_kg_triple_ids[:, :, 2:3]
+        question_type_ids = features[QUES_TYPE_IDS]
 
         if self.is_embedding_layer_initialised is False:
             self.initialize_embedding_layer(enocoder_num_trainable_tokens=params[ENCODER_NUM_TRAINABLE_TOKENS],
@@ -325,6 +326,7 @@ class CSQANetwork(object):
         predictions_dict[TOKEN_IDS] = predicted_word_ids
         predictions_dict[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES] = b_q
         predictions_dict[CANDIDATE_RESPONSE_ENTITIES] = objects
+        predictions_dict[QUES_TYPE_IDS] = question_type_ids
 
         # Needed by Java applications. Model can be called from Java
         classification_output = export_output.ClassificationOutput(
@@ -475,17 +477,17 @@ class CSQANetwork(object):
 
     def input_fct(self, dialogues, responses, relevant_kg_triples, batch_size):
 
-        instance_ids, utter_tok_ids = self._prepare_input(dialogues=dialogues)
+        instance_ids, utter_tok_ids, question_type_ids = self._prepare_input(dialogues=dialogues)
 
         # utter_tok_ids = np.expand_dims(utter_tok_ids, axis=0)
         response_tok_ids = np.array([response[TOKEN_IDS] for response in responses], dtype=np.int32)
         response_tok_ids = np.expand_dims(response_tok_ids, axis=0)
 
-        utter_tok_ids, instance_ids, response_tok_ids, relevant_kg_triples = tf.train.slice_input_producer(
-            [utter_tok_ids, instance_ids, response_tok_ids, relevant_kg_triples],
+        utter_tok_ids, instance_ids, question_type_ids, response_tok_ids, relevant_kg_triples = tf.train.slice_input_producer(
+            [utter_tok_ids, instance_ids, question_type_ids, response_tok_ids, relevant_kg_triples],
             shuffle=False)
 
-        dataset_dict = dict(dialogues=utter_tok_ids, responses=response_tok_ids,
+        dataset_dict = dict(dialogues=utter_tok_ids, responses=response_tok_ids, ques_type_ids=question_type_ids,
                             relevant_kg_triple_ids=relevant_kg_triples, instance_ids=instance_ids)
 
         batch_dicts = tf.train.batch(dataset_dict, batch_size=batch_size,
@@ -499,11 +501,12 @@ class CSQANetwork(object):
         return batch_dicts, response_tok_ids
 
     def input_pred_fct(self, dialogues, relevant_kg_triples):
-        instance_ids, utter_tok_ids = self._prepare_input(dialogues=dialogues)
+        instance_ids, utter_tok_ids, question_type_ids = self._prepare_input(dialogues=dialogues)
 
         predict_input_fn = tf.estimator.inputs.numpy_input_fn(
             x={DIALOGUES: utter_tok_ids,
-               RELEVANT_KG_TRIPLES: relevant_kg_triples, 'instance_ids': instance_ids},
+               RELEVANT_KG_TRIPLES: relevant_kg_triples, 'instance_ids': instance_ids,
+               QUES_TYPE_IDS: question_type_ids},
             num_epochs=1,
             shuffle=False  # Don't shuffle evaluation data
         )
@@ -519,4 +522,7 @@ class CSQANetwork(object):
         num_rows, num_columns = utter_tok_ids.shape
         utter_tok_ids = np.reshape(utter_tok_ids, newshape=(-1, num_rows, num_columns))
 
-        return instance_ids, utter_tok_ids
+        # dialogue[-2] represents the last question asked, dialogue[-1] is the response
+        question_type_ids = np.array([[dialogue[-2][CSQA_QUES_TYPE_ID]] for dialogue in dialogues], dtype=np.int32)
+
+        return instance_ids, utter_tok_ids, question_type_ids

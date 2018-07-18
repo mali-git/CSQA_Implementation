@@ -10,6 +10,7 @@ QUESTION_UTTERANCE_EMBEDDED = 'question_utterance_embedded'
 ANSWER_ENTITIES = 'entities_in_answer'
 ANSWER_UTTERANCE = 'answer_utterance'
 ANSWER_UTTERANCE_EMBEDDED = 'answer_utterance_embedded'
+QUES_TYPE_IDS = 'ques_type_ids'
 
 # Given keys in the training corpus
 CSQA_ALL_ENTITIES = 'all_entities'
