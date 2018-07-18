@@ -79,9 +79,9 @@ class CSQANetwork(object):
 
             else:
                 self.encoder_embeddings = tf.get_variable(name="encoder_embeddings",
-                                                                  shape=[encoder_vocab_size, word_vec_dim],
-                                                                  initializer=tf.random_normal_initializer(),
-                                                                  trainable=True)
+                                                          shape=[encoder_vocab_size, word_vec_dim],
+                                                          initializer=tf.random_normal_initializer(),
+                                                          trainable=True)
 
             # ------------Initialize Decoder Embeddings---------------
             if self.initial_decoder_embeddings is not None:
@@ -99,9 +99,9 @@ class CSQANetwork(object):
 
             else:
                 self.decoder_embeddings = tf.get_variable(name="embeddings",
-                                                                  shape=[encoder_vocab_size, word_vec_dim],
-                                                                  initializer=tf.random_normal_initializer(),
-                                                                  trainable=True)
+                                                          shape=[encoder_vocab_size, word_vec_dim],
+                                                          initializer=tf.random_normal_initializer(),
+                                                          trainable=True)
             # ------------Initialize KG Embeddings---------------
             if self.kg_entity_embeddings is None:
                 self.kg_entity_embeddings = self.initialize_kg_embeddings(var_name='kg_entity_embeddings',
@@ -126,6 +126,8 @@ class CSQANetwork(object):
         """
         dialgoue_representations = []
         batch_dialogues = features[DIALOGUES]
+
+        print("batch: ", batch_dialogues)
 
         # embedded_keys = features['keys_embedded']
         # embedded_values = features['values_embedded']
@@ -159,7 +161,9 @@ class CSQANetwork(object):
                 pass
 
             # Look up KG entities
+            subjects_i = tf.identity(subjects[i], name='subjects_i')
             embedded_subjs = tf.nn.embedding_lookup(self.kg_entity_embeddings, subjects[i])
+            embedded_subjs = tf.identity(embedded_subjs, name='embedded_subjs')
             embedded_relations = tf.nn.embedding_lookup(self.kg_relation_embeddings, relations[i])
             embedded_objs = tf.nn.embedding_lookup(self.kg_entity_embeddings, objects[i])
 
@@ -310,6 +314,9 @@ class CSQANetwork(object):
             # tf.count_nonzero(input_tensor=mask, axis=1)
 
         # ----------------Prepare Output----------------
+
+        print("predicted_word_ids: ", predicted_word_ids.get_shape())
+        print("objects: ", objects.get_shape())
 
         # Dictionary containing the predictions
         predictions_dict = OrderedDict()
@@ -466,21 +473,20 @@ class CSQANetwork(object):
 
         return helper
 
-    def input_fct(self, dialogues, responses, relevant_kg_triple_ids, batch_size):
-        instance_ids = np.array([dialogue[INSTANCE_ID] for dialogue in dialogues], dtype=np.str)
-        instance_ids = np.expand_dims(instance_ids, axis=0)
-        instance_ids = np.expand_dims(instance_ids, axis=-1)
-        utter_tok_ids = np.array([dialogue[TOKEN_IDS] for dialogue in dialogues], dtype=np.int32)
-        utter_tok_ids = np.expand_dims(utter_tok_ids, axis=0)
+    def input_fct(self, dialogues, responses, relevant_kg_triples, batch_size):
+
+        instance_ids, utter_tok_ids = self._prepare_input(dialogues=dialogues)
+
+        # utter_tok_ids = np.expand_dims(utter_tok_ids, axis=0)
         response_tok_ids = np.array([response[TOKEN_IDS] for response in responses], dtype=np.int32)
         response_tok_ids = np.expand_dims(response_tok_ids, axis=0)
 
-        utter_tok_ids, instance_ids, response_tok_ids, relevant_kg_triple_ids = tf.train.slice_input_producer(
-            [utter_tok_ids, instance_ids, response_tok_ids, relevant_kg_triple_ids],
+        utter_tok_ids, instance_ids, response_tok_ids, relevant_kg_triples = tf.train.slice_input_producer(
+            [utter_tok_ids, instance_ids, response_tok_ids, relevant_kg_triples],
             shuffle=False)
 
         dataset_dict = dict(dialogues=utter_tok_ids, responses=response_tok_ids,
-                            relevant_kg_triple_ids=relevant_kg_triple_ids, instance_ids=instance_ids)
+                            relevant_kg_triple_ids=relevant_kg_triples, instance_ids=instance_ids)
 
         batch_dicts = tf.train.batch(dataset_dict, batch_size=batch_size,
                                      num_threads=1, capacity=batch_size * 2,
@@ -492,45 +498,25 @@ class CSQANetwork(object):
 
         return batch_dicts, response_tok_ids
 
-    def input_predict_fct(self, dialogues, relevant_kg_triple_ids, batch_size):
+    def input_pred_fct(self, dialogues, relevant_kg_triples):
+        instance_ids, utter_tok_ids = self._prepare_input(dialogues=dialogues)
 
-        instance_ids = np.array([dialogue[INSTANCE_ID] for dialogue in dialogues], dtype=np.str)
-        instance_ids = np.expand_dims(instance_ids, axis=0)
-        instance_ids = np.expand_dims(instance_ids, axis=-1)
-        utter_tok_ids = np.array([dialogue[TOKEN_IDS] for dialogue in dialogues], dtype=np.int32)
-        utter_tok_ids = np.expand_dims(utter_tok_ids, axis=0)
-        utter_tok_ids, instance_ids, relevant_kg_triple_ids = tf.train.slice_input_producer(
-            [utter_tok_ids, instance_ids, relevant_kg_triple_ids],
-            shuffle=False)
-
-        dataset_dict = dict(dialogues=utter_tok_ids,
-                            relevant_kg_triple_ids=relevant_kg_triple_ids, instance_ids=instance_ids)
-
-        batch_dicts = tf.train.batch(dataset_dict, batch_size=batch_size,
-                                     num_threads=1, capacity=batch_size * 2,
-                                     enqueue_many=False, shapes=None, dynamic_pad=False,
-                                     allow_smaller_final_batch=False,
-                                     shared_name=None, name=None)
-
-        return batch_dicts
-
-    def input_inference_fct(self, dialogues, relevant_kg_triple_ids):
-        instance_ids = np.array([dialogue[INSTANCE_ID] for dialogue in dialogues], dtype=np.str)
-        instance_ids = np.expand_dims(instance_ids, axis=0)
-        instance_ids = np.expand_dims(instance_ids, axis=-1)
-        utter_tok_ids = np.array([dialogue[TOKEN_IDS] for dialogue in dialogues], dtype=np.int32)
-        utter_tok_ids = np.expand_dims(utter_tok_ids, axis=0)
-        utter_tok_ids = tf.constant(utter_tok_ids)
-        relevant_kg_triple_ids = tf.constant(relevant_kg_triple_ids)
-        instance_ids = tf.constant(instance_ids)
-        dataset_dict = dict(dialogues=utter_tok_ids,
-                            relevant_kg_triple_ids=relevant_kg_triple_ids, instance_ids=instance_ids)
-
-        # utter_tok_ids, instance_ids, relevant_kg_triple_ids = tf.train.slice_input_producer(
-        #     [utter_tok_ids, instance_ids, relevant_kg_triple_ids],
-        #     shuffle=False)
-
-        return tf.estimator.inputs.numpy_input_fn(
-            x={DIALOGUES: utter_tok_ids, RELEVANT_KG_TRIPLES: relevant_kg_triple_ids, 'instance_ids': instance_ids},
+        predict_input_fn = tf.estimator.inputs.numpy_input_fn(
+            x={DIALOGUES: utter_tok_ids,
+               RELEVANT_KG_TRIPLES: relevant_kg_triples, 'instance_ids': instance_ids},
             num_epochs=1,
-            shuffle=False)
+            shuffle=False  # Don't shuffle evaluation data
+        )
+
+        return predict_input_fn
+
+    def _prepare_input(self, dialogues):
+
+        instance_ids = np.array([dialogue[0][INSTANCE_ID] for dialogue in dialogues], dtype=np.str)
+        instance_ids = np.expand_dims(instance_ids, axis=0)
+        instance_ids = np.expand_dims(instance_ids, axis=-1)
+        utter_tok_ids = np.array([utter[TOKEN_IDS] for dialogue in dialogues for utter in dialogue], dtype=np.int32)
+        num_rows, num_columns = utter_tok_ids.shape
+        utter_tok_ids = np.reshape(utter_tok_ids, newshape=(-1, num_rows, num_columns))
+
+        return instance_ids, utter_tok_ids
