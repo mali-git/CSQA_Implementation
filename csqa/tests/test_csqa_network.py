@@ -11,12 +11,13 @@ import tensorflow as tf
 from neural_network_models.csqa_network import CSQANetwork
 from utilities.constants import NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONTEXT_CELL, NUM_HOPS, WORD_VEC_DIM, \
     ENCODER_VOCABUALRY_SIZE, DECODER_VOCABUALRY_SIZE, LEARNING_RATE, OPTIMIZER, MAX_NUM_UTTER_TOKENS, ADAM, \
-    ENCODER_NUM_TRAINABLE_TOKENS, DECODER_NUM_TRAINABLE_TOKENS, BATCH_SIZE, KG_WORD, KG_WORD_ID, INSTANCE_ID, \
-    TOKEN_IDS, DIALOGUES, RELEVANT_KG_TRIPLES, TARGET_SOS_ID, EOS_TOKEN, SOS_TOKEN, TARGET_EOS_ID, LOGITS, \
-    WORD_PROBABILITIES, CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES, CANDIDATE_RESPONSE_ENTITIES
+    ENCODER_NUM_TRAINABLE_TOKENS, DECODER_NUM_TRAINABLE_TOKENS, BATCH_SIZE, KG_WORD, KG_WORD_ID, TOKEN_IDS, \
+    TARGET_SOS_ID, EOS_TOKEN, SOS_TOKEN, TARGET_EOS_ID, \
+    CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES, CANDIDATE_RESPONSE_ENTITIES
 from utilities.corpus_preprocessing_utils.load_dialogues import load_data_from_json_file
 from utilities.general_utils import load_dict_from_disk
 from utilities.instance_creation_utils.dialogue_instance_creator import DialogueInstanceCreator
+from utilities.prediction_utils import replace_kg_tokens_with_predicted_entities
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -118,7 +119,7 @@ class TestCSQANetwork(unittest.TestCase):
 
         instances_of_dialogue, target_inst, relevant_kg_triples = self.instance_creator.create_training_instances(
             dialogue=dialogue, file_id=file_id)
-
+        dialogues = [instances_of_dialogue]
         relevant_kg_triples = np.expand_dims(relevant_kg_triples, axis=0)
         responses = [target_inst]
 
@@ -128,13 +129,14 @@ class TestCSQANetwork(unittest.TestCase):
                                initial_decoder_embeddings=self.response_embeddings)
 
         logging_hook = tf.train.LoggingTensorHook(
-            ['compute_entites_in_response/probabilities_response_candidate_entities', 'decoder/logits'],
+            ['compute_entites_in_response/probabilities_response_candidate_entities', 'decoder/logits',
+             'embedded_subjs'],
             every_n_iter=10)
         nn_estimator = tf.estimator.Estimator(model_fn=nn_model.model_fct, params=self.model_params,
                                               model_dir=output_dir, config=None)
 
-        nn_estimator.train(input_fn=lambda: nn_model.input_fct(dialogues=instances_of_dialogue, responses=responses,
-                                                               relevant_kg_triple_ids=relevant_kg_triples,
+        nn_estimator.train(input_fn=lambda: nn_model.input_fct(dialogues=dialogues, responses=responses,
+                                                               relevant_kg_triples=relevant_kg_triples,
                                                                batch_size=1), steps=100, hooks=[logging_hook])
 
     def test_predict_mode(self):
@@ -150,6 +152,8 @@ class TestCSQANetwork(unittest.TestCase):
         instances_of_dialogue, target_inst, relevant_kg_triples = self.instance_creator.create_training_instances(
             dialogue=dialogue, file_id=file_id)
 
+        dialogues = [instances_of_dialogue]
+
         relevant_kg_triples = np.expand_dims(relevant_kg_triples, axis=0)
         responses = [target_inst]
 
@@ -158,36 +162,37 @@ class TestCSQANetwork(unittest.TestCase):
                                initial_encoder_embeddings=self.ctx_embeddings,
                                initial_decoder_embeddings=self.response_embeddings)
 
+        print("dict: ", self.kg_entity_to_embeddings_dict)
+
         logging_hook = tf.train.LoggingTensorHook(
-            ['compute_entites_in_response/probabilities_response_candidate_entities', 'decoder/logits'],
+            ['embedded_subjs', 'subjects_i'],
             every_n_iter=10)
+
         nn_estimator = tf.estimator.Estimator(model_fn=nn_model.model_fct, params=self.model_params,
                                               model_dir=output_dir, config=None)
 
-        nn_estimator.train(input_fn=lambda: nn_model.input_fct(dialogues=instances_of_dialogue, responses=responses,
-                                                               relevant_kg_triple_ids=relevant_kg_triples,
-                                                               batch_size=1), steps=100)  # , hooks=[logging_hook])
+        nn_estimator.train(input_fn=lambda: nn_model.input_fct(dialogues=dialogues, responses=responses,
+                                                               relevant_kg_triples=relevant_kg_triples,
+                                                               batch_size=1), steps=100, hooks=[logging_hook])
 
-        instance_ids = np.array([dialogue[INSTANCE_ID] for dialogue in instances_of_dialogue], dtype=np.str)
-        instance_ids = np.expand_dims(instance_ids, axis=0)
-        instance_ids = np.expand_dims(instance_ids, axis=-1)
-        utter_tok_ids = np.array([dialogue[TOKEN_IDS] for dialogue in instances_of_dialogue], dtype=np.int32)
-        utter_tok_ids = np.expand_dims(utter_tok_ids, axis=0)
+        prediction_generator = nn_estimator.predict(
+            input_fn=nn_model.input_pred_fct(dialogues=dialogues, relevant_kg_triples=relevant_kg_triples))
 
-        predict_input_fn = tf.estimator.inputs.numpy_input_fn(
-            x={DIALOGUES: utter_tok_ids,
-               RELEVANT_KG_TRIPLES: relevant_kg_triples, 'instance_ids':instance_ids},
-            num_epochs=1,
-            shuffle=False  # Don't shuffle evaluation data
-        )
+        print("KG TOKEN: ", self.model_params[KG_WORD_ID])
 
-        prediction_generator= nn_estimator.predict(input_fn=predict_input_fn)
+        for i, p in enumerate(prediction_generator):
+            predicted_tok_id = p[TOKEN_IDS]
+            pred_prob_entities = p[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES]
+            predicted_entities = p[CANDIDATE_RESPONSE_ENTITIES]
 
-
-
-        for p in prediction_generator:
-            print(p[TOKEN_IDS])
-            print(p[LOGITS])
-            print(p[WORD_PROBABILITIES])
+            # print(p[LOGITS])
+            # print(p[WORD_PROBABILITIES])
             print(p[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES])
-            print(p[CANDIDATE_RESPONSE_ENTITIES])
+            print(p[CANDIDATE_RESPONSE_ENTITIES][i])
+            entiy_integrated = replace_kg_tokens_with_predicted_entities(predicted_tok_ids=predicted_tok_id,
+                                                                         predicted_entities=predicted_entities,
+                                                                         pred_prob_entities=pred_prob_entities,
+                                                                         kg_tok_id=self.model_params[KG_WORD_ID])
+
+            print(predicted_tok_id)
+            print(entiy_integrated)
