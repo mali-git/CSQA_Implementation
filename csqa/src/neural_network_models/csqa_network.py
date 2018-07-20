@@ -11,7 +11,8 @@ from utilities.constants import NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONT
     WORD_PROBABILITIES, TOKEN_IDS, TARGET_SOS_ID, TARGET_EOS_ID, MAX_NUM_UTTER_TOKENS, BATCH_SIZE, \
     ENCODER_NUM_TRAINABLE_TOKENS, \
     DIALOGUES, DECODER_NUM_TRAINABLE_TOKENS, DECODER_VOCABUALRY_SIZE, RESPONSES, RELEVANT_KG_TRIPLES, INSTANCE_ID, \
-    CANDIDATE_RESPONSE_ENTITIES, CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES, CSQA_QUES_TYPE_ID, QUES_TYPE_IDS
+    CANDIDATE_RESPONSE_ENTITIES, CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES, QUES_TYPES, \
+    CSQA_QUESTION_TYPE, INSTANCE_IDS
 from utilities.tensorflow_estimator_utils import get_estimator_specification, get_optimizer
 
 logging.basicConfig(level=logging.INFO)
@@ -127,15 +128,13 @@ class CSQANetwork(object):
         dialgoue_representations = []
         batch_dialogues = features[DIALOGUES]
 
-        print("batch: ", batch_dialogues)
-
         # embedded_keys = features['keys_embedded']
         # embedded_values = features['values_embedded']
         relevant_kg_triple_ids = features[RELEVANT_KG_TRIPLES]
         subjects = relevant_kg_triple_ids[:, :, 0:1]
         relations = relevant_kg_triple_ids[:, :, 1:2]
         objects = relevant_kg_triple_ids[:, :, 2:3]
-        question_type_ids = features[QUES_TYPE_IDS]
+        question_types = features[QUES_TYPES]
 
         if self.is_embedding_layer_initialised is False:
             self.initialize_embedding_layer(enocoder_num_trainable_tokens=params[ENCODER_NUM_TRAINABLE_TOKENS],
@@ -316,9 +315,6 @@ class CSQANetwork(object):
 
         # ----------------Prepare Output----------------
 
-        print("predicted_word_ids: ", predicted_word_ids.get_shape())
-        print("objects: ", objects.get_shape())
-
         # Dictionary containing the predictions
         predictions_dict = OrderedDict()
         predictions_dict[LOGITS] = logits
@@ -326,7 +322,7 @@ class CSQANetwork(object):
         predictions_dict[TOKEN_IDS] = predicted_word_ids
         predictions_dict[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES] = b_q
         predictions_dict[CANDIDATE_RESPONSE_ENTITIES] = objects
-        predictions_dict[QUES_TYPE_IDS] = question_type_ids
+        predictions_dict[QUES_TYPES] = question_types
 
         # Needed by Java applications. Model can be called from Java
         classification_output = export_output.ClassificationOutput(
@@ -487,8 +483,8 @@ class CSQANetwork(object):
             [utter_tok_ids, instance_ids, question_type_ids, response_tok_ids, relevant_kg_triples],
             shuffle=False)
 
-        dataset_dict = dict(dialogues=utter_tok_ids, responses=response_tok_ids, ques_type_ids=question_type_ids,
-                            relevant_kg_triple_ids=relevant_kg_triples, instance_ids=instance_ids)
+        dataset_dict = {DIALOGUES:utter_tok_ids, RESPONSES:response_tok_ids, QUES_TYPES:question_type_ids,
+                        RELEVANT_KG_TRIPLES:relevant_kg_triples, INSTANCE_IDS:instance_ids}
 
         batch_dicts = tf.train.batch(dataset_dict, batch_size=batch_size,
                                      num_threads=1, capacity=batch_size * 2,
@@ -501,12 +497,12 @@ class CSQANetwork(object):
         return batch_dicts, response_tok_ids
 
     def input_pred_fct(self, dialogues, relevant_kg_triples):
-        instance_ids, utter_tok_ids, question_type_ids = self._prepare_input(dialogues=dialogues)
+        instance_ids, utter_tok_ids, question_types = self._prepare_input(dialogues=dialogues)
 
         predict_input_fn = tf.estimator.inputs.numpy_input_fn(
             x={DIALOGUES: utter_tok_ids,
-               RELEVANT_KG_TRIPLES: relevant_kg_triples, 'instance_ids': instance_ids,
-               QUES_TYPE_IDS: question_type_ids},
+               RELEVANT_KG_TRIPLES: relevant_kg_triples, INSTANCE_IDS: instance_ids,
+               QUES_TYPES: question_types},
             num_epochs=1,
             shuffle=False  # Don't shuffle evaluation data
         )
@@ -523,6 +519,6 @@ class CSQANetwork(object):
         utter_tok_ids = np.reshape(utter_tok_ids, newshape=(-1, num_rows, num_columns))
 
         # dialogue[-2] represents the last question asked, dialogue[-1] is the response
-        question_type_ids = np.array([[dialogue[-2][CSQA_QUES_TYPE_ID]] for dialogue in dialogues], dtype=np.int32)
+        question_types = np.array([[dialogue[-2][CSQA_QUESTION_TYPE]] for dialogue in dialogues], dtype=np.str)
 
-        return instance_ids, utter_tok_ids, question_type_ids
+        return instance_ids, utter_tok_ids, question_types

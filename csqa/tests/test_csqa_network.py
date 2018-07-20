@@ -13,7 +13,7 @@ from utilities.constants import NUM_UNITS_HRE_UTTERANCE_CELL, NUM_UNITS_HRE_CONT
     ENCODER_VOCABUALRY_SIZE, DECODER_VOCABUALRY_SIZE, LEARNING_RATE, OPTIMIZER, MAX_NUM_UTTER_TOKENS, ADAM, \
     ENCODER_NUM_TRAINABLE_TOKENS, DECODER_NUM_TRAINABLE_TOKENS, BATCH_SIZE, KG_WORD, KG_WORD_ID, TOKEN_IDS, \
     TARGET_SOS_ID, EOS_TOKEN, SOS_TOKEN, TARGET_EOS_ID, \
-    CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES, CANDIDATE_RESPONSE_ENTITIES
+    CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES, CANDIDATE_RESPONSE_ENTITIES, QUES_TYPES, CSQA_QUESTION_TYPE
 from utilities.corpus_preprocessing_utils.load_dialogues import load_data_from_json_file
 from utilities.general_utils import load_dict_from_disk
 from utilities.instance_creation_utils.dialogue_instance_creator import DialogueInstanceCreator
@@ -179,20 +179,42 @@ class TestCSQANetwork(unittest.TestCase):
             input_fn=nn_model.input_pred_fct(dialogues=dialogues, relevant_kg_triples=relevant_kg_triples))
 
         print("KG TOKEN: ", self.model_params[KG_WORD_ID])
+        predicted_utterances = []
+        pred_prob_entities = []
+        candidate_entities = []
 
         for i, p in enumerate(prediction_generator):
-            predicted_tok_id = p[TOKEN_IDS]
-            pred_prob_entities = p[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES]
-            predicted_entities = p[CANDIDATE_RESPONSE_ENTITIES]
+            predicted_utterances.append(p[TOKEN_IDS])
+            pred_prob_entities.append(p[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES])
+            candidate_entities.append(p[CANDIDATE_RESPONSE_ENTITIES])
+            print(p[QUES_TYPES])
 
             # print(p[LOGITS])
             # print(p[WORD_PROBABILITIES])
-            print(p[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES])
-            print(p[CANDIDATE_RESPONSE_ENTITIES][i])
-            entiy_integrated = replace_kg_tokens_with_predicted_entities(predicted_tok_ids=predicted_tok_id,
-                                                                         predicted_entities=predicted_entities,
-                                                                         pred_prob_entities=pred_prob_entities,
-                                                                         kg_tok_id=self.model_params[KG_WORD_ID])
+            # print(p[CANDIDATE_RESPONSE_ENTITIES_PROBABILITIES])
+            # print(p[CANDIDATE_RESPONSE_ENTITIES][i])
+            # entiy_integrated = replace_kg_tokens_with_predicted_entities(predicted_tok_ids=predicted_tok_id,
+            #                                                              predicted_entities=predicted_entities,
+            #                                                              pred_prob_entities=pred_prob_entities,
+            #                                                              kg_tok_id=self.model_params[KG_WORD_ID])
 
-            print(predicted_tok_id)
-            print(entiy_integrated)
+            # print(predicted_tok_id)
+            # print(entiy_integrated)
+
+        word_to_id = self.instance_creator.response_word_to_id
+        response_word_id_to_word = {value: key for key, value in word_to_id.items()}
+
+        kg_entity_to_id = self.instance_creator.entity_to_id
+        id_to_kg_entity = {value: key for key, value in kg_entity_to_id.items()}
+
+        predicted_utterances = np.array(predicted_utterances)
+
+        for i, pred_utter in enumerate(predicted_utterances ):
+            merged_utter, pred_entites = replace_kg_tokens_with_predicted_entities(predicted_toks=pred_utter,
+                                                                         predicted_entities=candidate_entities[i],
+                                                                         pred_prob_entities=pred_prob_entities[i],
+                                                                         kg_tok=4,
+                                                                         kg_id_to_kg_entity=id_to_kg_entity,
+                                                                         response_tok_id_to_word=response_word_id_to_word)
+            print(merged_utter)
+            print(pred_entites)

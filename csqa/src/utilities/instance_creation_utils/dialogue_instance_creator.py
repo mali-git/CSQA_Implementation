@@ -7,7 +7,7 @@ import spacy
 from gensim.models import KeyedVectors
 
 from utilities.constants import CSQA_UTTERANCE, CSQA_ENTITIES_IN_UTTERANCE, UNKNOWN_TOKEN, SOS_TOKEN, EOS_TOKEN, \
-    KG_WORD, PADDING_TOKEN, TOKEN_IDS, INSTANCE_ID, CSQA_QUES_TYPE_ID
+    KG_WORD, PADDING_TOKEN, TOKEN_IDS, INSTANCE_ID, CSQA_QUES_TYPE_ID, CSQA_SPEAKER, CSQA_USER, CSQA_QUESTION_TYPE
 from utilities.corpus_preprocessing_utils.load_dialogues import load_data_from_json_file
 from utilities.corpus_preprocessing_utils.text_manipulation_utils import save_insertion_of_offsets, mark_parts_in_text, \
     compute_nlp_features
@@ -323,6 +323,7 @@ class DialogueInstanceCreator(object):
         context = dialogue[:-1]
         response = dialogue[-1]
 
+
         counter = 0
 
         for utter_dict in context:
@@ -360,9 +361,9 @@ class DialogueInstanceCreator(object):
         new_inst[TOKEN_IDS] = utter_token_ids
         new_inst[CSQA_ENTITIES_IN_UTTERANCE] = utter_dict[CSQA_ENTITIES_IN_UTTERANCE]
 
-        if CSQA_QUES_TYPE_ID in utter_dict:
-            # Utternace is a question
-            new_inst[CSQA_QUES_TYPE_ID] = int(utter_dict[CSQA_QUES_TYPE_ID])
+        if utter_dict[CSQA_SPEAKER] == CSQA_USER:
+            # Utternace is a question since user is speaking
+            new_inst[CSQA_QUESTION_TYPE] = str(utter_dict[CSQA_QUESTION_TYPE])
 
         return new_inst
 
