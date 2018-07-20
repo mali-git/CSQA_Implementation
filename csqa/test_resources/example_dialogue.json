@@ -3,7 +3,8 @@
     "entities_in_utterance": ["Q11571"],
     "speaker": "USER",
     "utterance": "cristiano ronaldo final june soccer goal",
-    "ques_type_id": 1
+    "question-type": "Simple Question (Direct)"
+
   },
   {
     "entities_in_utterance": ["Q11571"],
@@ -14,7 +15,7 @@
     "entities_in_utterance": ["Q11571"],
     "speaker": "USER",
     "utterance": "cristiano ronaldo final june soccer goal",
-    "ques_type_id": 1
+    "question-type": "Simple Question (Direct)"
   },
   {
     "entities_in_utterance": ["Q615"],
