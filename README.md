@@ -1,4 +1,4 @@
-# kg_embeddings_dialogue_system
+# Complex Sequential Question Answering (CSQA) [1]
 
 This repository contains an implementation for the Complex Sequential Question Answering (CSQA) \[1\] task.
 
