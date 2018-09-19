@@ -1,10 +1,7 @@
 # kg_embeddings_dialogue_system
 
-This repository will be used to develop a dialogue systems that makes use of knowledge graph embeddings.
+This repository contains an implementation for Complex Sequential Question Answering (CSQA) \[1\] task.
 
-## Repository Structure 
-
-* In './csqa' the code for training a dialogue system for the Complex Sequential Question Answering (CSQA) \[1\] task is contained
 
 ## References
 
